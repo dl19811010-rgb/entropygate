@@ -1,0 +1,149 @@
+openapi: "3.0.0"
+info:
+  title: EntropyGate AI Intelligence API
+  version: v1
+  description: |
+    Public Intelligence API for EntropyGate AI.
+    All endpoints return deterministic, evidence-backed intelligence.
+    Runtime v1 certified. No direct DB access.
+
+servers:
+  - url: /api/v1
+    description: Production API
+
+paths:
+  /intelligence/daily:
+    get:
+      summary: Daily AI Intelligence Summary
+      operationId: getDaily
+      responses:
+        "200":
+          description: Daily intelligence feed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/APIResponse"
+
+  /intelligence/company:
+    get:
+      summary: Company Intelligence
+      operationId: getCompany
+      parameters:
+        - name: name
+          in: query
+          schema:
+            type: string
+          description: Company name filter
+      responses:
+        "200":
+          description: Company intelligence feed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/APIResponse"
+
+  /intelligence/model:
+    get:
+      summary: Model Intelligence
+      operationId: getModel
+      parameters:
+        - name: name
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Model intelligence feed
+
+  /intelligence/capability:
+    get:
+      summary: Capability Intelligence
+      operationId: getCapability
+      parameters:
+        - name: name
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Capability intelligence feed
+
+  /intelligence/trend:
+    get:
+      summary: Trend Intelligence
+      operationId: getTrend
+      responses:
+        "200":
+          description: Trend intelligence feed
+
+  /intelligence/search:
+    get:
+      summary: Search across all intelligence
+      operationId: search
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Search results
+
+components:
+  schemas:
+    APIResponse:
+      type: object
+      properties:
+        version:
+          type: string
+          example: "v1"
+        generated_at:
+          type: string
+          format: date-time
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/IntelligenceItem"
+        evidence:
+          type: object
+        pagination:
+          $ref: "#/components/schemas/Pagination"
+
+    IntelligenceItem:
+      type: object
+      properties:
+        view_id:
+          type: string
+        headline:
+          type: string
+        summary:
+          type: string
+        confidence:
+          type: number
+        evidence:
+          type: array
+          items:
+            type: string
+        related_companies:
+          type: array
+          items:
+            type: string
+        related_models:
+          type: array
+          items:
+            type: string
+        related_capabilities:
+          type: array
+          items:
+            type: string
+
+    Pagination:
+      type: object
+      properties:
+        page:
+          type: integer
+        size:
+          type: integer
+        total:
+          type: integer

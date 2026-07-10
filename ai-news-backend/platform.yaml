@@ -1,0 +1,30 @@
+# Platform Descriptor - Configuration Driven
+# This is the single source of platform identity.
+# PlatformDescriptor.load("platform.yaml") reads this file.
+# Fingerprint = SHA256(this file's content)
+
+runtime:
+  version: "1.0"
+  plugin_api: "1.0"
+  frozen: true
+
+sdk:
+  version: "1.0"
+
+contracts:
+  fact: locked
+  replay: locked
+  projection: locked
+  sdk: locked
+
+packages:
+  timeline:
+    level: core
+  capability:
+    level: core
+
+policies:
+  runtime:
+    - frozen
+  compatibility:
+    - strict
