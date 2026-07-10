@@ -1,18 +1,21 @@
-# Database files with API keys
-ainews.db
-
-# Environment variables with secrets
+node_modules/
+dist/
+build/
+*.log
 .env
-
-# Python cache
+*.db
+*.sqlite
+*.sqlite3
 __pycache__/
 *.pyc
-
-# Node modules
-node_modules/
-
-# Logs
+*.pyo
+.DS_Store
+.vscode/
+.idea/
+uploads/
 logs/
-
-# Frontend build output (Cloudflare handles this)
-dist/
+*.bak
+*.tmp
+.cache/
+.pytest_cache/
+.mypy_cache/
