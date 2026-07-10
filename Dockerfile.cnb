@@ -1,0 +1,21 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+COPY ai-news-backend/requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt && pip install --no-cache-dir apscheduler gunicorn
+
+COPY ai-news-backend/ ./ai-news-backend/
+COPY ai-news-frontend/dist/ ./ai-news-frontend/dist/
+
+RUN mkdir -p /data
+ENV DATABASE_URL=sqlite:////data/ainews.db
+ENV SECRET_KEY=f3a9c7e2-8b4d-4e1a-9f6c-2d5a8e3b7c1e-cnb
+ENV CORS_ORIGINS=*
+ENV ENVIRONMENT=production
+
+RUN cd ai-news-backend && python seed_deploy.py || true
+
+WORKDIR /app/ai-news-backend
+
+CMD ["gunicorn", "-w", "2", "-k", "uvicorn.workers.UvicornWorker", "app.main:app", "--bind", "0.0.0.0:7860"]

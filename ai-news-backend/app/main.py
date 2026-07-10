@@ -12,6 +12,9 @@ from app.core.logging import setup_logging
 from app.core.middleware import RequestLoggingMiddleware
 from app.core.response import success_response
 
+# Import all models to ensure they are registered with SQLAlchemy metadata
+from app.models import admin, article, audit, category, intelligence, source, tag, tool
+
 # ── Routers ─────────────────────────────────────────────────
 from app.routers import admin_auth, admins, articles, audit_logs, categories
 from app.routers import dashboard, homepage, intelligence, operations, roles
