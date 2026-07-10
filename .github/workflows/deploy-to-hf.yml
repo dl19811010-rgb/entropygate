@@ -1,0 +1,81 @@
+name: Deploy to Hugging Face Space
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'ai-news-backend/**'
+      - 'hf-space-deploy/**'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install huggingface_hub
+
+      - name: Prepare deployment files
+        run: |
+          rm -rf ./deploy_stage
+          mkdir -p ./deploy_stage
+
+          cp ./hf-space-deploy/app.py ./deploy_stage/
+          cp ./hf-space-deploy/requirements.txt ./deploy_stage/
+          cp ./hf-space-deploy/.env ./deploy_stage/
+
+          mkdir -p ./deploy_stage/app
+          cp ./ai-news-backend/app/__init__.py ./deploy_stage/app/
+          cp ./ai-news-backend/app/main.py ./deploy_stage/app/
+
+          cp -r ./ai-news-backend/app/core/ ./deploy_stage/app/core/
+          cp -r ./ai-news-backend/app/models/ ./deploy_stage/app/models/
+          cp -r ./ai-news-backend/app/routers/ ./deploy_stage/app/routers/
+          cp -r ./ai-news-backend/app/services/ ./deploy_stage/app/services/
+          cp -r ./ai-news-backend/app/schemas/ ./deploy_stage/app/schemas/
+          cp -r ./ai-news-backend/app/utils/ ./deploy_stage/app/utils/
+          cp -r ./ai-news-backend/app/api/ ./deploy_stage/app/api/
+          cp -r ./ai-news-backend/app/crawler/ ./deploy_stage/app/crawler/
+          cp -r ./ai-news-backend/app/projections/ ./deploy_stage/app/projections/
+          cp -r ./ai-news-backend/app/review/ ./deploy_stage/app/review/
+
+          mkdir -p ./deploy_stage/uploads
+          touch ./deploy_stage/uploads/.gitkeep
+
+          ls -la ./deploy_stage/
+          ls -la ./deploy_stage/app/
+
+      - name: Deploy to Hugging Face Space
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          HF_USER: ${{ secrets.HF_USER }}
+          SPACE_NAME: ${{ secrets.SPACE_NAME }}
+        run: |
+          python -c "
+          from huggingface_hub import HfApi
+          import os
+
+          api = HfApi(token=os.environ['HF_TOKEN'])
+          space_id = f\"{os.environ['HF_USER']}/{os.environ['SPACE_NAME']}\"
+
+          api.upload_folder(
+              repo_id=space_id,
+              folder_path='./deploy_stage',
+              repo_type='space',
+              commit_message=f\"Deploy from GitHub Actions - {os.environ['GITHUB_SHA'][:8]}\"
+          )
+
+          print(f'Deployment complete!')
+          print(f'Space: https://huggingface.co/spaces/{space_id}')
+          print(f'API endpoint: https://{os.environ[\"HF_USER\"]}-{os.environ[\"SPACE_NAME\"]}.hf.space')
+          "
