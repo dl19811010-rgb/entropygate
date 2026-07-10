@@ -1,0 +1,69 @@
+# Consumer Registry – External Runtime v1 consumers
+
+consumers:
+  - id: frontend_app
+    name: "EntropyGate Web App"
+    type: "frontend"
+    sdk_version: "v1"
+    api_version: "v1"
+    capabilities:
+      - daily
+      - company
+      - trend
+    status: active
+    onboarded: "2026-07-08"
+
+  - id: admin_dashboard
+    name: "Admin Dashboard"
+    type: "internal_tool"
+    sdk_version: "v1"
+    api_version: "v1"
+    capabilities:
+      - daily
+      - company
+      - model
+      - trend
+    status: active
+    onboarded: "2026-07-08"
+
+  - id: cli_tool
+    name: "CLI Intelligence Tool"
+    type: "developer_tool"
+    sdk_version: "v1"
+    api_version: "v1"
+    capabilities:
+      - company
+      - model
+      - search
+    status: active
+    onboarded: "2026-07-08"
+
+  - id: third_party_research
+    name: "AI Research Lab Partner"
+    type: "external_partner"
+    sdk_version: "v1"
+    api_version: "v1"
+    capabilities:
+      - trend
+      - search
+    status: active
+    onboarded: "2026-07-08"
+
+  - id: github_bot
+    name: "GitHub Intelligence Bot"
+    type: "integration"
+    sdk_version: "v1"
+    api_version: "v1"
+    capabilities:
+      - daily
+      - search
+    status: active
+    onboarded: "2026-07-08"
+
+summary:
+  total_consumers: 5
+  active_consumers: 5
+  api_versions: ["v1"]
+  sdk_versions: ["v1"]
+  capabilities_used: ["daily", "company", "model", "trend", "search"]
+  adoption_trend: "growing"
