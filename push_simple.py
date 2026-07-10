@@ -12,19 +12,27 @@ def upload_file(rel_path, content):
     headers = {"Authorization": f"token {GITHUB_TOKEN}", "Content-Type": "application/json"}
     
     b64_content = base64.b64encode(content).decode('utf-8')
+    
+    sha = None
+    try:
+        response = requests.get(url, headers=headers, timeout=10)
+        if response.status_code == 200:
+            sha = response.json()["sha"]
+    except:
+        pass
+    
     payload = {
-        "message": f"Add {rel_path}",
+        "message": f"Update {rel_path}",
         "content": b64_content,
         "branch": BRANCH
     }
+    if sha:
+        payload["sha"] = sha
     
     try:
         response = requests.put(url, headers=headers, json=payload, timeout=30)
         if response.status_code in [200, 201]:
             return True
-        elif response.status_code == 422:
-            print(f"  Conflict for {rel_path}")
-            return False
         else:
             print(f"  Failed {rel_path}: {response.status_code}")
             return False
