@@ -1,0 +1,18 @@
+# Database files with API keys
+ainews.db
+
+# Environment variables with secrets
+.env
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Node modules
+node_modules/
+
+# Logs
+logs/
+
+# Frontend build output (Cloudflare handles this)
+dist/
