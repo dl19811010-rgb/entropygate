@@ -1,7 +1,10 @@
 """FastAPI Application Entry Point."""
+import os
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 
 from app.core.config import settings
 from app.core.database import create_all
@@ -69,3 +72,15 @@ async def root():
         "version": settings.APP_VERSION,
         "environment": settings.ENVIRONMENT,
     })
+
+
+# ── Frontend Static Files ────────────────────────────────────
+frontends_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "ai-news-frontend", "dist")
+if os.path.exists(frontends_dir):
+    app.mount("/", StaticFiles(directory=frontends_dir, html=True), name="frontend")
+
+    @app.get("/{full_path:path}")
+    async def catch_all(full_path: str):
+        index_path = os.path.join(frontends_dir, "index.html")
+        if os.path.exists(index_path):
+            return FileResponse(index_path)
