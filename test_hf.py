@@ -1,9 +1,9 @@
 """Test Hugging Face API connectivity and basic operations."""
-import sys
+import sys, os
 
-HF_USER = "dl1010"
-HF_TOKEN = "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"
-SPACE_NAME = "entropygate-api"
+HF_USER = os.getenv("HF_USER", "dl1010")
+HF_TOKEN = os.getenv("HF_TOKEN", "")
+SPACE_NAME = os.getenv("SPACE_NAME", "entropygate-api")
 
 print("[1/3] Testing HF API import and login...")
 try:

@@ -1,9 +1,9 @@
 """Deploy the AI News backend to Hugging Face Space."""
 import sys, os, shutil, stat, json, tempfile
 
-HF_USER = "dl1010"
-HF_TOKEN = "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"
-SPACE_NAME = "entropygate-api"
+HF_USER = os.getenv("HF_USER", "dl1010")
+HF_TOKEN = os.getenv("HF_TOKEN", "")
+SPACE_NAME = os.getenv("SPACE_NAME", "entropygate-api")
 BACKEND_DIR = r"E:\aitoto\ai-news-backend"
 
 # ---------------------------------------------------------------------------

@@ -1,22 +1,17 @@
 main:
   push:
     - stages:
-        - name: "Build and Deploy AI News Platform"
-          image: python:3.11-slim
-          script:
-            # Install system dependencies including Node.js
-            - apt-get update && apt-get install -y curl git
-            - curl -fsSL https://deb.nodesource.com/setup_18.x | bash -
-            - apt-get install -y nodejs
-            # Install Python dependencies
-            - pip install --no-cache-dir -r ai-news-backend/requirements.txt
-            - pip install --no-cache-dir apscheduler uvicorn gunicorn
-            # Build frontend
-            - cd ai-news-frontend && npm install --registry=https://registry.npmmirror.com && npm run build && cd ..
-            # Seed database
-            - cd ai-news-backend && python seed_deploy.py || true && cd ..
-            # Run application
-            - cd ai-news-backend && gunicorn -w 2 -k uvicorn.workers.UvicornWorker app.main:app --bind 0.0.0.0:7860
+        - name: "Build Docker image"
+          docker:
+            build: ./Dockerfile.cnb
+          runner:
+            cpus: 2
+            memory: 4G
+  run:
+    - stages:
+        - name: "Start application"
+          docker:
+            image: .
           ports:
             - "7860"
           runner:
