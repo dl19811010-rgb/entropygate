@@ -26,21 +26,21 @@ $:
             - echo "=== Frontend and admin build complete ==="
         - name: "Install backend dependencies and init DB"
           script:
-            - echo "=== Ensuring Python3 and pip ==="
-            - python3 --version
-            - python3 -m ensurepip --upgrade || apt-get install -y python3-pip
-            - python3 -m pip --version
-            - echo "=== Installing Python dependencies ==="
+            - echo "=== Installing Python pip and venv ==="
+            - apt-get install -y python3-pip python3-venv
+            - echo "=== Creating virtual environment ==="
             - cd /workspace/ai-news-backend
-            - python3 -m pip install --no-cache-dir -r requirements.txt
-            - python3 -m pip install --no-cache-dir apscheduler uvicorn gunicorn
+            - python3 -m venv venv
+            - echo "=== Installing Python dependencies ==="
+            - venv/bin/pip install --no-cache-dir -r requirements.txt
+            - venv/bin/pip install --no-cache-dir apscheduler uvicorn gunicorn
             - echo "=== Initializing database ==="
-            - python3 seed_complete.py
+            - venv/bin/python seed_complete.py
             - echo "=== Backend ready ==="
       endStages:
         - name: "Start application"
           script:
             - cd /workspace/ai-news-backend
-            - exec python3 -m gunicorn -w 2 -k uvicorn.workers.UvicornWorker app.main:app --bind 0.0.0.0:7860 --access-logfile - --error-logfile -
+            - exec venv/bin/python -m gunicorn -w 2 -k uvicorn.workers.UvicornWorker app.main:app --bind 0.0.0.0:7860 --access-logfile - --error-logfile -
       ports:
         - "7860"
