@@ -34,7 +34,7 @@ echo "Starting application on port 7860..."
 echo "Access URL will be available at the forwarded port"
 
 # Start gunicorn in background and keep heartbeat output for CNB
-nohup gunicorn -w 2 -k uvicorn.workers.UvicornWorker app.main:app --bind 0.0.0.0:7860 --access-logfile - --error-logfile - >/tmp/gunicorn.log 2>&1 &
+nohup venv/bin/gunicorn -w 2 -k uvicorn.workers.UvicornWorker app.main:app --bind 0.0.0.0:7860 --access-logfile - --error-logfile - >/tmp/gunicorn.log 2>&1 &
 GUNICORN_PID=$!
 echo "Gunicorn started with PID $GUNICORN_PID"
 sleep 5
