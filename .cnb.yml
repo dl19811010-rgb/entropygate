@@ -1,4 +1,47 @@
 $:
+  push:
+    - runner:
+        cpus: 2
+        memory: 4G
+      stages:
+        - name: "Build frontend and admin"
+          script:
+            - echo "=== Installing Node.js ==="
+            - curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+            - apt-get update && apt-get install -y nodejs
+            - node --version
+            - npm --version
+            - echo "=== Building frontend ==="
+            - cd /workspace/ai-news-frontend
+            - npm install --registry=https://registry.npmmirror.com
+            - npm run build
+            - ls -la dist/index.html
+            - echo "=== Building admin panel ==="
+            - cd /workspace/ai-news-admin
+            - npm install --registry=https://registry.npmmirror.com
+            - npm run build
+            - ls -la dist/index.html
+            - echo "=== Frontend and admin build complete ==="
+        - name: "Install backend dependencies and init DB"
+          script:
+            - echo "=== Installing Python pip and venv ==="
+            - apt-get install -y python3-pip python3-venv
+            - echo "=== Creating virtual environment ==="
+            - cd /workspace/ai-news-backend
+            - python3 -m venv venv
+            - echo "=== Installing Python dependencies ==="
+            - venv/bin/pip install --no-cache-dir -r requirements.txt
+            - venv/bin/pip install --no-cache-dir apscheduler uvicorn gunicorn
+            - echo "=== Initializing database ==="
+            - venv/bin/python seed_complete.py
+            - echo "=== Backend ready ==="
+      endStages:
+        - name: "Start application"
+          script:
+            - cd /workspace/ai-news-backend
+            - exec venv/bin/python -m gunicorn -w 2 -k uvicorn.workers.UvicornWorker app.main:app --bind 0.0.0.0:7860 --access-logfile - --error-logfile -
+      ports:
+        - "7860"
   vscode:
     - runner:
         cpus: 2
