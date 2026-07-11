@@ -1,24 +1,37 @@
 $:
   vscode:
-    - docker:
-        build: ./Dockerfile.cnb
-        runner:
-          cpus: 2
-          memory: 2G
-        services:
-          - vscode
-        stages:
-          - name: "Prepare environment"
-            script:
-              - echo "=== Preparing environment ==="
-              - cd /workspace
-              - pip install --no-cache-dir -r ai-news-backend/requirements.txt
-              - pip install --no-cache-dir apscheduler uvicorn gunicorn
-              - cd ai-news-backend && python seed_deploy.py || echo "DB init done"
-              - echo "=== Environment ready ==="
-        endStages:
-          - name: "Start application"
-            script:
-              - cd /workspace && chmod +x start_app.sh && exec bash start_app.sh
-        ports:
-          - "7860"
+    - runner:
+        cpus: 2
+        memory: 4G
+      services:
+        - vscode
+      stages:
+        - name: "Build frontend"
+          script:
+            - echo "=== Installing Node.js ==="
+            - curl -fsSL https://deb.nodesource.com/setup_20.x | bash - || echo "Node setup script failed, trying alternative"
+            - apt-get update && apt-get install -y nodejs npm || echo "apt install failed"
+            - node --version || echo "node not found"
+            - npm --version || echo "npm not found"
+            - echo "=== Building frontend ==="
+            - cd /workspace/ai-news-frontend
+            - npm install --registry=https://registry.npmmirror.com || echo "npm install failed"
+            - npm run build || echo "npm build failed"
+            - ls -la dist/ || echo "dist not found"
+            - echo "=== Frontend build complete ==="
+        - name: "Install backend dependencies and init DB"
+          script:
+            - echo "=== Installing Python dependencies ==="
+            - cd /workspace/ai-news-backend
+            - pip install --no-cache-dir -r requirements.txt
+            - pip install --no-cache-dir apscheduler uvicorn gunicorn
+            - echo "=== Initializing database ==="
+            - python seed_deploy.py || echo "DB init done"
+            - echo "=== Backend ready ==="
+      endStages:
+        - name: "Start application"
+          script:
+            - cd /workspace/ai-news-backend
+            - exec gunicorn -w 2 -k uvicorn.workers.UvicornWorker app.main:app --bind 0.0.0.0:7860 --access-logfile - --error-logfile -
+      ports:
+        - "7860"
