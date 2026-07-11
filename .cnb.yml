@@ -1,7 +1,7 @@
 $:
   push:
     - stages:
-        - name: "Install system dependencies"
+        - name: "Install dependencies"
           image: python:3.11-slim
           script:
             - apt-get update && apt-get install -y curl git ca-certificates
