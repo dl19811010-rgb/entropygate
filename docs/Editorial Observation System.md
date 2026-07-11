@@ -277,20 +277,81 @@ EOS 是**整体覆盖的观察**：
 
 关系：Editorial Service 是 EOS 的输入之一。
 
-### EOS vs Story Builder（未来）
+### EOS vs Editorial Policy
 
-Story Builder 是**把多篇文章组织成故事**：
-- GPT-5 发布 → 相关报道 → 持续追踪 → 形成 Story
+EOS 是**测量仪器**：
+- 今天发生了什么？
+- 覆盖得怎么样？
+- 有哪些 Gap？
 
-EOS 是**观察故事覆盖情况**：
-- Foundation Model Race 这个 Story 今天有新进展吗？
-- Agent 这个 Story 今天有几条 signal？
+Editorial Policy 是**判断标准**：
+- 什么算重要？
+- 什么比例算健康？
+- 什么频率合适？
 
-关系：Story Builder 是 EOS 的下一层，EOS 为 Story Builder 提供覆盖度数据。
+关系：EOS 产出数据，Policy 定义标准。两者一起驱动编辑运营。
+
+> **P7: Policies evolve more often than code.**
+>
+> 产品应该更多通过调整编辑策略演进，而不是修改程序逻辑。
+
+- 觉得 Research 太多？→ 改 Quota，不改代码
+- 觉得某个 Source 很重要？→ 改 Tier，不改 Crawler
+- 觉得某个 Topic 热了？→ 改 Topic Weight，不改首页排序逻辑
 
 ---
 
-## 7. North Star
+### EOS vs Narrative Engine（未来）
+
+Narrative Engine 是**把多条信号组织成观点**：
+- "今天 AI 世界最重要的变化：Agent 正在成为默认的软件交互方式"
+- 把 OpenAI、Anthropic、Cursor 的三条新闻，变成一个 Narrative
+
+EOS 是**观察和测量**：
+- 今天有多少条 Agent 相关的信号？
+- Agent 连续多少天是 Top Topic？
+- 支撑这个 Narrative 的证据够不够？
+
+关系：Narrative Engine 建立在 EOS 之上。没有稳定的观察，就没有可信的叙事。
+
+---
+
+## 7. The Evolution Path — 从观察到标准
+
+EOS 不是终点。它是整个编辑体系的起点。
+
+```
+Phase 1: Observation（观察）
+    EOS v1.0 上线
+    每天记录 Coverage / Gaps / Noise Rate
+    ↓ 2 周
+
+Phase 2: Evidence（证据）
+    积累足够多的日常观察
+    识别 Repeated Patterns
+    ↓ 连续出现 7 天
+
+Phase 3: Policy Evolution（策略演化）
+    把 Repeated Pattern 升级为 Editorial Standard
+    发布 Editorial Policy v1.1 / v1.2
+    ↓ 持续迭代
+
+Phase 4: Editorial Confidence（编辑信心）
+    编辑标准稳定下来
+    可以回答"为什么今天首页是这样的"
+    ↓ 标准足够稳定后
+
+Phase 5: Narrative（叙事）
+    基于稳定的编辑标准
+    构建 Editorial Narrative Engine
+    从"今天发生了什么"到"今天为什么重要"
+```
+
+**核心判断：EOS v1.0 不是 Discovery 的结束，而是 Discovery 的测量仪器。**
+
+---
+
+## 8. North Star
 
 EOS 的北极星指标不是"采集了多少篇"。
 
@@ -306,36 +367,56 @@ EOS 的北极星指标不是"采集了多少篇"。
 
 那 EOS 就成功了。
 
----
+**更大的北极星：**
 
-## 8. Roadmap
-
-### v1.0（当前）— 观察闭环
-
-- ✅ Source Registry（Tier / Type / Topic / Priority）
-- ✅ Priority Scheduler
-- ✅ Editorial Calendar
-- ✅ Freshness Bands
-- ✅ Editorial Quota
-- ✅ Coverage Report (by source_type / language / topic / freshness)
-
-### v1.1 — 竞争力视角
-
-- Layer 9: Story Coverage（按故事线看覆盖，不是按 Topic）
-- Layer 10: Competitive Coverage（每个主要玩家今天有没有消息）
-- Layer 11: Editorial Confidence（今天的报道可信度有多高）
-
-### v1.2 — 噪音率优化
-
-- Editorial Noise Rate（值得看的 / 总采集数）
-- Missed Story 追踪（重要事件是否被捕捉到）
-
-### v2.0 — 学习闭环
-
-- 从编辑操作中学习（哪些被置顶 = 重要）
-- 自动调整 Source Priority
-- 自动推荐 Gap 补全
+> 连续运营两周后，我们能不能说清楚：为什么今天首页是这样的？
+>
+> （答案应该指向 Editorial Policy，而不是"改了代码"。）
 
 ---
 
-*文档版本：v1.0 | 最后更新：2026-07-12*
+## 9. Roadmap
+
+### 当前阶段：Observation Era（观察期）
+
+**目标：** 让 EOS 连续运行，积累运营数据，验证 Editorial Policy v1.0。
+
+**时长：** 至少 2 周（Day 0: 2026-07-12）
+
+**不做什么：**
+- 不新增 Layer
+- 不加新数据源
+- 不改架构
+
+**做什么：**
+- 每天记录运营观察
+- 跟踪关键指标趋势
+- 识别 Repeated Patterns
+- 积累 Policy Change Candidates
+
+---
+
+### 下一阶段：Policy Evolution Era
+
+**触发条件：** 连续运营 2 周，积累了足够的 Pattern
+
+**产出：**
+- Editorial Policy v1.1（第一次基于数据的策略调整）
+- 确认哪些 Tier/Topic/Quota 是对的，哪些需要调
+- 建立 "Observation → Evidence → Pattern → Policy" 的迭代节奏
+
+---
+
+### 远期：Narrative Era
+
+**触发条件：** Editorial Policy 稳定（至少迭代 3 个版本）
+
+**方向：**
+- Editorial Narrative Engine
+- 从"今天发生了什么"到"今天为什么重要"
+- 这时候做 ENE 才有意义，因为它建立在经过验证的编辑标准之上
+
+---
+
+*文档版本：v1.1 | 最后更新：2026-07-12*
+*更新内容：加入 P7 原则、演进路径、重新定义 Roadmap（观察期优先）*
