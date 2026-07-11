@@ -6,7 +6,7 @@ $:
       services:
         - vscode
       stages:
-        - name: "Build frontend"
+        - name: "Build frontend and admin"
           script:
             - echo "=== Installing Node.js ==="
             - curl -fsSL https://deb.nodesource.com/setup_20.x | bash - || echo "Node setup script failed, trying alternative"
@@ -18,7 +18,12 @@ $:
             - npm install --registry=https://registry.npmmirror.com || echo "npm install failed"
             - npm run build || echo "npm build failed"
             - ls -la dist/ || echo "dist not found"
-            - echo "=== Frontend build complete ==="
+            - echo "=== Building admin panel ==="
+            - cd /workspace/ai-news-admin
+            - npm install --registry=https://registry.npmmirror.com || echo "npm install failed"
+            - npm run build || echo "npm build failed"
+            - ls -la dist/ || echo "dist not found"
+            - echo "=== Frontend and admin build complete ==="
         - name: "Install backend dependencies and init DB"
           script:
             - echo "=== Installing Python dependencies ==="
@@ -26,7 +31,7 @@ $:
             - pip install --no-cache-dir -r requirements.txt
             - pip install --no-cache-dir apscheduler uvicorn gunicorn
             - echo "=== Initializing database ==="
-            - python seed_deploy.py || echo "DB init done"
+            - python seed_complete.py || echo "DB init done"
             - echo "=== Backend ready ==="
       endStages:
         - name: "Start application"

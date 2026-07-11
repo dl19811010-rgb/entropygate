@@ -32,7 +32,7 @@ def _seed_initial_data():
             db.add(Admin(
                 username="admin",
                 password_hash=hash_password("admin123"),
-                status="active",
+                is_active=1,
                 role="super_admin",
             ))
             print("[STARTUP] Admin user created: admin / admin123")
@@ -79,22 +79,23 @@ app.add_middleware(
 app.add_middleware(RequestLoggingMiddleware)
 
 # ── Include routers ─────────────────────────────────────────
-app.include_router(admin_auth.router)
-app.include_router(admins.router)
-app.include_router(articles.router)
-app.include_router(audit_logs.router)
-app.include_router(categories.router)
-app.include_router(dashboard.router)
-app.include_router(homepage.router)
-app.include_router(intelligence.router)
-app.include_router(operations.router)
-app.include_router(roles.router)
-app.include_router(search.router)
-app.include_router(sources.router)
-app.include_router(tags.router)
-app.include_router(timeline.router)
-app.include_router(tools.router)
-app.include_router(upload.router)
+_API_PREFIX = "/api/v1"
+app.include_router(admin_auth.router, prefix=_API_PREFIX)
+app.include_router(admins.router, prefix=_API_PREFIX)
+app.include_router(articles.router, prefix=_API_PREFIX)
+app.include_router(audit_logs.router, prefix=_API_PREFIX)
+app.include_router(categories.router, prefix=_API_PREFIX)
+app.include_router(dashboard.router, prefix=_API_PREFIX)
+app.include_router(homepage.router, prefix=_API_PREFIX)
+app.include_router(intelligence.router, prefix=_API_PREFIX)
+app.include_router(operations.router, prefix=_API_PREFIX)
+app.include_router(roles.router, prefix=_API_PREFIX)
+app.include_router(search.router, prefix=_API_PREFIX)
+app.include_router(sources.router, prefix=_API_PREFIX)
+app.include_router(tags.router, prefix=_API_PREFIX)
+app.include_router(timeline.router, prefix=_API_PREFIX)
+app.include_router(tools.router, prefix=_API_PREFIX)
+app.include_router(upload.router, prefix=_API_PREFIX)
 
 
 # ── Root ────────────────────────────────────────────────────
@@ -108,12 +109,15 @@ async def root():
 
 
 # ── Frontend Static Files ────────────────────────────────────
-frontends_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "ai-news-frontend", "dist")
+# Mount admin frontend at /admin (must come before the catch-all / mount)
+_base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+frontends_dir = os.path.join(_base_dir, "ai-news-frontend", "dist")
+admin_dir = os.path.join(_base_dir, "ai-news-admin", "dist")
+
+# Admin panel at /admin
+if os.path.exists(admin_dir):
+    app.mount("/admin", StaticFiles(directory=admin_dir, html=True), name="admin")
+
+# Main frontend at / (catch-all, must be last)
 if os.path.exists(frontends_dir):
     app.mount("/", StaticFiles(directory=frontends_dir, html=True), name="frontend")
-
-    @app.get("/{full_path:path}")
-    async def catch_all(full_path: str):
-        index_path = os.path.join(frontends_dir, "index.html")
-        if os.path.exists(index_path):
-            return FileResponse(index_path)
