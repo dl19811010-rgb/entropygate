@@ -10,21 +10,15 @@ $:
         stages:
           - name: "Prepare environment"
             script:
-              - echo "=== Starting environment preparation ==="
+              - echo "=== Preparing environment ==="
               - cd /workspace
-              - ls -la
-              - echo "=== Installing dependencies ==="
               - pip install --no-cache-dir -r ai-news-backend/requirements.txt
               - pip install --no-cache-dir apscheduler uvicorn gunicorn
-              - echo "=== Initializing database ==="
-              - cd ai-news-backend
-              - python seed_deploy.py || echo "Database init done"
+              - cd ai-news-backend && python seed_deploy.py || echo "DB init done"
               - echo "=== Environment ready ==="
         endStages:
           - name: "Start application"
             script:
-              - echo "=== Starting AI News Application ==="
-              - cd /workspace/ai-news-backend
-              - exec gunicorn -w 2 -k uvicorn.workers.UvicornWorker app.main:app --bind 0.0.0.0:7860 --access-logfile -
+              - cd /workspace && chmod +x start_app.sh && exec bash start_app.sh
         ports:
           - "7860"
