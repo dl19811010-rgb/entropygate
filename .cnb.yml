@@ -1,17 +1,12 @@
 $:
   push:
     - stages:
-        - name: "Install dependencies"
-          image: python:3.11-slim
-          script:
-            - apt-get update && apt-get install -y curl git ca-certificates
-            - pip install --no-cache-dir -r ai-news-backend/requirements.txt
-            - pip install --no-cache-dir apscheduler uvicorn gunicorn
-            - cd ai-news-backend && python seed_deploy.py || true && cd ..
-            - echo "BUILD_COMPLETE"
+        - name: "Build Docker image"
+          docker:
+            build: ./Dockerfile.cnb
           runner:
             cpus: 2
-            memory: 2G
+            memory: 4G
   vscode:
     - docker:
         build: ./Dockerfile.cnb
