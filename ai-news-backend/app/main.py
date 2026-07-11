@@ -7,13 +7,16 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
 from app.core.config import settings
-from app.core.database import create_all
+from app.core.database import create_all, SessionLocal
 from app.core.logging import setup_logging
 from app.core.middleware import RequestLoggingMiddleware
 from app.core.response import success_response
+from app.utils.security import hash_password
 
 # Import all models to ensure they are registered with SQLAlchemy metadata
 from app.models import admin, article, audit, category, intelligence, source, tag, tool
+from app.models.admin import Admin
+from app.models.category import Category
 
 # ── Routers ─────────────────────────────────────────────────
 from app.routers import admin_auth, admins, articles, audit_logs, categories
@@ -21,11 +24,38 @@ from app.routers import dashboard, homepage, intelligence, operations, roles
 from app.routers import search, sources, tags, timeline, tools, upload
 
 
+def _seed_initial_data():
+    """Seed essential data on first boot."""
+    db = SessionLocal()
+    try:
+        if db.query(Admin).count() == 0:
+            db.add(Admin(
+                username="admin",
+                password_hash=hash_password("admin123"),
+                status="active",
+                role="super_admin",
+            ))
+            print("[STARTUP] Admin user created: admin / admin123")
+
+        cats = {"ai-news": "AI 新闻", "models": "模型", "tools": "工具", "research": "研究"}
+        for slug, name in cats.items():
+            if not db.query(Category).filter(Category.slug == slug).first():
+                db.add(Category(slug=slug, name=name))
+        db.commit()
+        print("[STARTUP] Categories ensured")
+    except Exception as e:
+        print(f"[STARTUP] Seed warning: {e}")
+        db.rollback()
+    finally:
+        db.close()
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup / shutdown events."""
     setup_logging()
     create_all()
+    _seed_initial_data()
     yield
 
 
