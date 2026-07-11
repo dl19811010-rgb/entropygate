@@ -12,16 +12,16 @@ $:
           runner:
             cpus: 2
             memory: 2G
-  run:
-    - stages:
-        - name: "Start application"
-          image: python:3.11-slim
-          script:
-            - pip install --no-cache-dir -r ai-news-backend/requirements.txt
-            - pip install --no-cache-dir apscheduler uvicorn gunicorn
-            - cd ai-news-backend && gunicorn -w 2 -k uvicorn.workers.UvicornWorker app.main:app --bind 0.0.0.0:7860
-          ports:
-            - "7860"
-          runner:
-            cpus: 2
-            memory: 2G
+  vscode:
+    - docker:
+        build: ./Dockerfile.cnb
+        runner:
+          cpus: 2
+          memory: 2G
+        services:
+          - vscode
+        stages:
+          - name: "Start application"
+            script: cd ai-news-backend && gunicorn -w 2 -k uvicorn.workers.UvicornWorker app.main:app --bind 0.0.0.0:7860
+        ports:
+          - "7860"
