@@ -1,11 +1,12 @@
 #!/bin/bash
 set -e
 
-echo "=== Starting AI News Application ==="
+echo "============================================"
+echo "=== AI News Platform Starting ==="
+echo "============================================"
 echo "Time: $(date)"
 echo "Working directory: $(pwd)"
 
-# Set environment variables if not already set
 export DATABASE_URL=${DATABASE_URL:-"sqlite:////data/ainews.db"}
 export SECRET_KEY=${SECRET_KEY:-"f3a9c7e2-8b4d-4e1a-9f6c-2d5a8e3b7c1e-cnb"}
 export CORS_ORIGINS=${CORS_ORIGINS:-"*"}
@@ -14,33 +15,68 @@ export ENVIRONMENT=${ENVIRONMENT:-"production"}
 echo "DATABASE_URL: $DATABASE_URL"
 echo "ENVIRONMENT: $ENVIRONMENT"
 
-# Ensure /data directory exists
 mkdir -p /data
-
-# Navigate to backend directory
 cd /workspace/ai-news-backend
 
-echo "Installing dependencies into venv..."
-venv/bin/pip install --no-cache-dir -r requirements.txt 2>&1 | tail -5
-venv/bin/pip install --no-cache-dir apscheduler uvicorn gunicorn 2>&1 | tail -5
+echo ""
+echo "--- Checking frontend builds ---"
+if [ -f "/workspace/ai-news-frontend/dist/index.html" ]; then
+  echo "[OK] Frontend dist exists"
+else
+  echo "[WARN] Frontend dist not found, API-only mode"
+fi
+if [ -f "/workspace/ai-news-admin/dist/index.html" ]; then
+  echo "[OK] Admin dist exists"
+else
+  echo "[WARN] Admin dist not found"
+fi
 
-echo "Initializing database..."
-venv/bin/python seed_complete.py 2>&1 || venv/bin/python seed_deploy.py 2>&1 || echo "Database init completed (or already initialized)"
+echo ""
+echo "--- Installing Python dependencies ---"
+if [ ! -d "venv" ]; then
+  echo "Creating virtual environment..."
+  python3 -m venv venv
+fi
+venv/bin/pip install --no-cache-dir -r requirements.txt 2>&1 | tail -3
+venv/bin/pip install --no-cache-dir apscheduler uvicorn gunicorn 2>&1 | tail -3
+echo "[OK] Dependencies installed"
 
-echo "Testing application import..."
-venv/bin/python -c "from app.main import app; print('Import successful')" 2>&1
+echo ""
+echo "--- Verifying application ---"
+venv/bin/python -c "from app.main import app; print('[OK] Application import successful')" 2>&1
 
-echo "Starting application on port 7860..."
-echo "Access URL will be available at the forwarded port"
-
-# Start gunicorn in background and keep heartbeat output for CNB
-nohup venv/bin/gunicorn -w 2 -k uvicorn.workers.UvicornWorker app.main:app --bind 0.0.0.0:7860 --access-logfile - --error-logfile - >/tmp/gunicorn.log 2>&1 &
+echo ""
+echo "--- Starting server on port 7860 ---"
+nohup venv/bin/gunicorn -w 2 -k uvicorn.workers.UvicornWorker app.main:app \
+  --bind 0.0.0.0:7860 \
+  --access-logfile - \
+  --error-logfile - \
+  --timeout 120 \
+  >/tmp/gunicorn.log 2>&1 &
 GUNICORN_PID=$!
-echo "Gunicorn started with PID $GUNICORN_PID"
-sleep 5
+echo "Gunicorn PID: $GUNICORN_PID"
+
+sleep 8
+if kill -0 $GUNICORN_PID 2>/dev/null; then
+  STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:7860/ || echo "000")
+  echo "[OK] Server started, health check: $STATUS"
+  echo ""
+  echo "============================================"
+  echo "  Platform is running!"
+  echo "  - Frontend: /"
+  echo "  - Admin:    /admin/"
+  echo "  - API:      /api/v1/"
+  echo "============================================"
+else
+  echo "[ERROR] Server failed to start"
+  cat /tmp/gunicorn.log
+  exit 1
+fi
 
 while kill -0 $GUNICORN_PID 2>/dev/null; do
-  sleep 30
-  echo "$(date '+%Y-%m-%d %H:%M:%S') - heartbeat - gunicorn running on port 7860"
-  curl -s -o /dev/null -w "%{http_code}" http://localhost:7860/api/v1/health || true
+  sleep 60
+  echo "[$(date '+%H:%M:%S')] heartbeat - OK"
 done
+
+echo "[WARN] Server process exited"
+exit 1
