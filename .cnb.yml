@@ -38,21 +38,7 @@ $:
       endStages:
         - name: "Start application"
           script:
-            - |
-              cat > /workspace/run_gunicorn.sh << 'SCRIPT_EOF'
-              #!/bin/bash
-              cd /workspace/ai-news-backend
-              nohup venv/bin/python -m gunicorn -w 2 -k uvicorn.workers.UvicornWorker app.main:app --bind 0.0.0.0:7860 --access-logfile - --error-logfile - >/tmp/gunicorn.log 2>&1 &
-              GUNICORN_PID=$!
-              echo "Gunicorn started with PID $GUNICORN_PID"
-              sleep 5
-              while kill -0 $GUNICORN_PID 2>/dev/null; do
-                sleep 30
-                echo "$(date '+%Y-%m-%d %H:%M:%S') - heartbeat - gunicorn running on port 7860"
-                curl -s -o /dev/null -w "%{http_code}" http://localhost:7860/api/v1/health || true
-              done
-              SCRIPT_EOF
-            - chmod +x /workspace/run_gunicorn.sh && /workspace/run_gunicorn.sh
+            - bash /workspace/start_app.sh
       ports:
         - "7860"
   vscode:
@@ -96,20 +82,6 @@ $:
       endStages:
         - name: "Start application"
           script:
-            - |
-              cat > /workspace/run_gunicorn.sh << 'SCRIPT_EOF'
-              #!/bin/bash
-              cd /workspace/ai-news-backend
-              nohup venv/bin/python -m gunicorn -w 2 -k uvicorn.workers.UvicornWorker app.main:app --bind 0.0.0.0:7860 --access-logfile - --error-logfile - >/tmp/gunicorn.log 2>&1 &
-              GUNICORN_PID=$!
-              echo "Gunicorn started with PID $GUNICORN_PID"
-              sleep 5
-              while kill -0 $GUNICORN_PID 2>/dev/null; do
-                sleep 30
-                echo "$(date '+%Y-%m-%d %H:%M:%S') - heartbeat - gunicorn running on port 7860"
-                curl -s -o /dev/null -w "%{http_code}" http://localhost:7860/api/v1/health || true
-              done
-              SCRIPT_EOF
-            - chmod +x /workspace/run_gunicorn.sh && /workspace/run_gunicorn.sh
+            - bash /workspace/start_app.sh
       ports:
         - "7860"

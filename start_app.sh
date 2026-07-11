@@ -32,4 +32,15 @@ python -c "from app.main import app; print('Import successful')" 2>&1
 
 echo "Starting application on port 7860..."
 echo "Access URL will be available at the forwarded port"
-exec gunicorn -w 2 -k uvicorn.workers.UvicornWorker app.main:app --bind 0.0.0.0:7860 --access-logfile - --error-logfile -
+
+# Start gunicorn in background and keep heartbeat output for CNB
+nohup gunicorn -w 2 -k uvicorn.workers.UvicornWorker app.main:app --bind 0.0.0.0:7860 --access-logfile - --error-logfile - >/tmp/gunicorn.log 2>&1 &
+GUNICORN_PID=$!
+echo "Gunicorn started with PID $GUNICORN_PID"
+sleep 5
+
+while kill -0 $GUNICORN_PID 2>/dev/null; do
+  sleep 30
+  echo "$(date '+%Y-%m-%d %H:%M:%S') - heartbeat - gunicorn running on port 7860"
+  curl -s -o /dev/null -w "%{http_code}" http://localhost:7860/api/v1/health || true
+done
