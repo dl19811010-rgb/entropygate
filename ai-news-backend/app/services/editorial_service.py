@@ -687,9 +687,160 @@ class EditorialService:
             },
         }
 
+    def generate_coverage_report(self, db) -> dict:
+        """Generate daily editorial coverage report (Layer 8)."""
+        return generate_coverage_report(db)
+
 
 def _clamp(lo: float, hi: float, val: float) -> float:
     return max(lo, min(hi, val))
+
+
+# ═══════════════════════════════════════════════════════════════
+# EDITORIAL COVERAGE REPORT (Layer 8)
+# ═══════════════════════════════════════════════════════════════
+
+
+def generate_coverage_report(db) -> dict:
+    """Generate a daily editorial coverage report.
+
+    Answers: "Today did we miss anything?"
+    """
+    from app.models.article import Article
+    from app.models.source import Source
+    from app.core.editorial_policy import EDITORIAL_QUOTA, TOPIC_TAXONOMY, compute_freshness
+
+    now = datetime.utcnow()
+    today_start = now - timedelta(hours=24)
+
+    articles = db.query(Article).filter(Article.fetched_at >= today_start).all()
+    total = len(articles)
+
+    if total == 0:
+        return {
+            "date": now.isoformat(),
+            "total_articles": 0,
+            "summary": "No articles collected in the last 24 hours.",
+            "gaps": [{"dimension": "all", "message": "No coverage at all"}],
+        }
+
+    # ── By source type
+    type_counts = {}
+    for a in articles:
+        source = db.query(Source).filter(Source.id == a.source_id).first() if a.source_id else None
+        stype = source.source_type if source and hasattr(source, "source_type") else "unknown"
+        type_counts[stype] = type_counts.get(stype, 0) + 1
+
+    type_report = []
+    for stype, quota in EDITORIAL_QUOTA["source_type"].items():
+        count = type_counts.get(stype, 0)
+        pct = round(count / total * 100, 1) if total > 0 else 0
+        min_pct = quota["min_pct"]
+        status = "ok" if pct >= min_pct else "gap"
+        type_report.append({
+            "source_type": stype,
+            "label": quota["label"],
+            "count": count,
+            "percentage": pct,
+            "target_min": min_pct,
+            "target_max": quota["max_pct"],
+            "status": status,
+        })
+
+    # ── By language
+    lang_counts = {}
+    for a in articles:
+        lang = "chinese" if a.language == "zh" else "english" if a.language == "en" else "other"
+        lang_counts[lang] = lang_counts.get(lang, 0) + 1
+
+    lang_report = []
+    for lang, quota in EDITORIAL_QUOTA["language"].items():
+        count = lang_counts.get(lang, 0)
+        pct = round(count / total * 100, 1) if total > 0 else 0
+        status = "ok" if pct >= quota["min_pct"] else "gap"
+        lang_report.append({
+            "language": lang,
+            "label": quota["label"],
+            "count": count,
+            "percentage": pct,
+            "target_min": quota["min_pct"],
+            "status": status,
+        })
+
+    # ── By topic (from source.topics)
+    topic_counts = {}
+    for a in articles:
+        source = db.query(Source).filter(Source.id == a.source_id).first() if a.source_id else None
+        if source and hasattr(source, "topics") and source.topics:
+            for t in source.topics.split(","):
+                t = t.strip()
+                if t:
+                    topic_counts[t] = topic_counts.get(t, 0) + 1
+
+    topic_report = []
+    gaps = []
+    for topic in TOPIC_TAXONOMY:
+        count = topic_counts.get(topic["slug"], 0)
+        min_daily = topic.get("min_daily", 0)
+        status = "ok" if count >= min_daily else "gap"
+        entry = {
+            "topic": topic["slug"],
+            "label": topic["name"],
+            "count": count,
+            "min_daily": min_daily,
+            "priority": topic["priority"],
+            "color": topic["color"],
+            "status": status,
+        }
+        topic_report.append(entry)
+        if status == "gap" and min_daily > 0:
+            gaps.append(f"Topic '{topic['name']}' below minimum: {count}/{min_daily}")
+
+    # ── By freshness
+    freshness_counts = {"hot": 0, "warm": 0, "fresh": 0, "archive": 0, "stale": 0}
+    for a in articles:
+        f = compute_freshness(a.published_at, now)
+        freshness_counts[f["band"]] = freshness_counts.get(f["band"], 0) + 1
+
+    freshness_report = []
+    for band, quota in EDITORIAL_QUOTA["freshness"].items():
+        count = freshness_counts.get(band, 0)
+        pct = round(count / total * 100, 1) if total > 0 else 0
+        status = "ok" if pct >= quota["min_pct"] else "warn"
+        freshness_report.append({
+            "band": band,
+            "label": quota["label"],
+            "count": count,
+            "percentage": pct,
+            "target_min": quota["min_pct"],
+            "status": status,
+        })
+
+    # ── Compile gaps
+    for tr in type_report:
+        if tr["status"] == "gap":
+            gaps.append(f"Source type '{tr['label']}' below target: {tr['percentage']}% (min {tr['target_min']}%)")
+    for lr in lang_report:
+        if lr["status"] == "gap":
+            gaps.append(f"Language '{lr['label']}' below target: {lr['percentage']}% (min {lr['target_min']}%)")
+
+    summary = f"Collected {total} articles. "
+    if gaps:
+        summary += f"Found {len(gaps)} coverage gaps."
+    else:
+        summary += "All quotas met."
+
+    return {
+        "date": now.isoformat(),
+        "total_articles": total,
+        "summary": summary,
+        "by_source_type": type_report,
+        "by_language": lang_report,
+        "by_topic": topic_report,
+        "by_freshness": freshness_report,
+        "gaps": gaps,
+        "gaps_count": len(gaps),
+    }
 
 
 editorial_service = EditorialService()

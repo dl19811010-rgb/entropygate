@@ -38,7 +38,9 @@ def seed():
         source_count = db.query(Src).count()
         print(f"[SEED] Existing sources: {source_count}")
         if source_count == 0:
-            print("[SEED] No sources found. Run seed_editorial_tiers.py + add_chinese_sources.py locally then re-deploy.")
+            from seed_sources import seed_sources
+            seed_sources()
+            print("[SEED] Sources seeded from seed_sources.py")
 
     finally:
         db.close()

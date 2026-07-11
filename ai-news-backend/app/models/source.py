@@ -41,6 +41,25 @@ EDITORIAL_TIERS = {
     },
 }
 
+# ── Source Types ────────────────────────────────────────────────
+SOURCE_TYPES = {
+    "official": {"label": "Official", "description": "Official company/lab blogs and announcements"},
+    "research": {"label": "Research", "description": "Academic papers, preprint servers, research labs"},
+    "community": {"label": "Community", "description": "Forums, discussion platforms, community curation"},
+    "media": {"label": "Media", "description": "Tech journalism, news outlets, industry press"},
+    "social": {"label": "Social", "description": "Social media accounts of key figures and orgs"},
+    "developer": {"label": "Developer", "description": "GitHub releases, changelogs, SDK updates"},
+    "documentation": {"label": "Documentation", "description": "API docs, product docs, technical references"},
+}
+
+# ── Priority Levels ─────────────────────────────────────────────
+PRIORITY_LEVELS = {
+    "critical": {"label": "Critical", "crawl_interval": 5, "description": "Breaking news, major releases — near real-time"},
+    "high": {"label": "High", "crawl_interval": 15, "description": "Important sources, frequent updates"},
+    "normal": {"label": "Normal", "crawl_interval": 30, "description": "Standard editorial cadence"},
+    "low": {"label": "Low", "crawl_interval": 120, "description": "Background monitoring, low urgency"},
+}
+
 
 class Source(Base):
     __tablename__ = "sources"
@@ -58,11 +77,20 @@ class Source(Base):
     category = Column(String(100), default="")
     topic_focus = Column(String(200), default="")
 
-    # Editorial tiering
+    # ── Editorial tiering (Layer 1: Source Tier)
     editorial_tier = Column(String(20), default="b_tier")
     editorial_role = Column(String(50), default="context & amplification")
     editorial_score = Column(Float, default=60.0)
     editorial_bucket = Column(String(30), default="credible")
+
+    # ── Source Type (Layer 3: Source Type)
+    source_type = Column(String(30), default="media")  # official, research, community, media, social, developer, documentation
+
+    # ── Event Priority (Layer 4: Event Priority)
+    priority = Column(String(20), default="normal")  # critical, high, normal, low
+
+    # ── Topics (Layer 2: Topic Strategy) — comma-separated topic slugs
+    topics = Column(Text, default="")  # e.g. "reasoning,agent,api"
 
     # Meta
     credibility_score = Column(Float, default=50.0)
@@ -101,6 +129,9 @@ class Source(Base):
             "editorial_role": self.editorial_role,
             "editorial_score": self.editorial_score,
             "editorial_bucket": self.editorial_bucket,
+            "source_type": self.source_type,
+            "priority": self.priority,
+            "topics": [t.strip() for t in self.topics.split(",")] if self.topics else [],
             "credibility_score": self.credibility_score,
             "bias_rating": self.bias_rating,
             "fact_check_rating": self.fact_check_rating,

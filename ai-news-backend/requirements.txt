@@ -14,6 +14,7 @@ feedparser>=6.0.11
 beautifulsoup4>=4.12.3
 lxml>=5.2.2
 markdown>=3.6
+apscheduler>=3.10.4
 # 认证与安全
 passlib[bcrypt]>=1.7.4
 bcrypt>=4.1.3
