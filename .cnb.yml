@@ -38,15 +38,7 @@ $:
       endStages:
         - name: "Start application"
           script:
-            - cd /workspace/ai-news-backend
-            - venv/bin/python -m gunicorn -w 2 -k uvicorn.workers.UvicornWorker app.main:app --bind 0.0.0.0:7860 --access-logfile - --error-logfile - &
-            - GUNICORN_PID=$!
-            - echo "Gunicorn started with PID $GUNICORN_PID"
-            - while kill -0 $GUNICORN_PID 2>/dev/null; do
-                sleep 30;
-                echo "$(date '+%Y-%m-%d %H:%M:%S') - heartbeat - gunicorn running on port 7860";
-                curl -s -o /dev/null -w "%{http_code}" http://localhost:7860/api/v1/health || true;
-              done
+            - cd /workspace/ai-news-backend && venv/bin/python -m gunicorn -w 2 -k uvicorn.workers.UvicornWorker app.main:app --bind 0.0.0.0:7860 --access-logfile - --error-logfile - & GUNICORN_PID=$! && echo "Gunicorn started with PID $GUNICORN_PID" && while kill -0 $GUNICORN_PID 2>/dev/null; do sleep 30; echo "$(date '+%Y-%m-%d %H:%M:%S') - heartbeat - gunicorn running on port 7860"; curl -s -o /dev/null -w "%{http_code}" http://localhost:7860/api/v1/health || true; done
       ports:
         - "7860"
   vscode:
@@ -90,14 +82,6 @@ $:
       endStages:
         - name: "Start application"
           script:
-            - cd /workspace/ai-news-backend
-            - venv/bin/python -m gunicorn -w 2 -k uvicorn.workers.UvicornWorker app.main:app --bind 0.0.0.0:7860 --access-logfile - --error-logfile - &
-            - GUNICORN_PID=$!
-            - echo "Gunicorn started with PID $GUNICORN_PID"
-            - while kill -0 $GUNICORN_PID 2>/dev/null; do
-                sleep 30;
-                echo "$(date '+%Y-%m-%d %H:%M:%S') - heartbeat - gunicorn running on port 7860";
-                curl -s -o /dev/null -w "%{http_code}" http://localhost:7860/api/v1/health || true;
-              done
+            - cd /workspace/ai-news-backend && venv/bin/python -m gunicorn -w 2 -k uvicorn.workers.UvicornWorker app.main:app --bind 0.0.0.0:7860 --access-logfile - --error-logfile - & GUNICORN_PID=$! && echo "Gunicorn started with PID $GUNICORN_PID" && while kill -0 $GUNICORN_PID 2>/dev/null; do sleep 30; echo "$(date '+%Y-%m-%d %H:%M:%S') - heartbeat - gunicorn running on port 7860"; curl -s -o /dev/null -w "%{http_code}" http://localhost:7860/api/v1/health || true; done
       ports:
         - "7860"
