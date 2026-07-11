@@ -130,7 +130,7 @@ const routes = [
 ]
 
 const router = createRouter({
-  history: createWebHistory('/admin/'),
+  history: createWebHistory(),
   routes,
   scrollBehavior() {
     return { top: 0 }

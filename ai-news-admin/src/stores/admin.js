@@ -43,7 +43,7 @@ export const useAdminStore = defineStore('admin', {
   actions: {
     async login(username, password, remember = true) {
       const res = await apiLogin({ username, password })
-      this.token = res.data.token
+      this.token = res.data.access_token
       this.adminInfo = res.data.admin
       // 先清理所有存储，再按是否记住写入对应存储
       clearStored()

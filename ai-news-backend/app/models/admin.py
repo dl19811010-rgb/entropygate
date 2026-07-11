@@ -27,7 +27,6 @@ class Admin(Base):
             "role": self.role,
             "permissions": self.permissions.split(",") if self.permissions else [],
             "is_active": self.is_active,
-            "is_super": self.role == "super_admin",
             "last_login_at": self.last_login_at.isoformat() if self.last_login_at else None,
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }

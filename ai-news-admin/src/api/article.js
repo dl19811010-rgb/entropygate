@@ -46,5 +46,5 @@ export function batchRewriteArticles(ids) {
 
 // ESS v2 — 分组审核
 export function getGroupedReview(bucket) {
-  return request.get('/articles/review/grouped', { params: bucket ? { bucket } : {} })
+  return request.get('/articles/grouped-review', { params: bucket ? { bucket } : {} })
 }

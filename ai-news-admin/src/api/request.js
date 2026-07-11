@@ -14,8 +14,10 @@ function clearAuth() {
   sessionStorage.removeItem(ADMIN_INFO_KEY)
 }
 
-// 生产环境和开发环境都使用同源 /api/v1（CNB 部署后前后端同源）
-const baseURL = '/api/v1'
+// 生产环境: HuggingFace Space → 最终 Cloudflare DNS 代理到 api.entropygate.cc.cd
+const baseURL = import.meta.env.PROD
+  ? 'https://dl1010-entropygate.hf.space/api/v1'
+  : '/api/v1'
 
 const request = axios.create({
   baseURL,
@@ -41,7 +43,7 @@ request.interceptors.response.use(
     if (res.code && res.code !== 200) {
       if (res.code === 401) {
         clearAuth()
-        window.location.href = '/admin/login'
+        window.location.href = '/login'
       }
       return Promise.reject(new Error(res.message || '请求失败'))
     }
@@ -50,7 +52,7 @@ request.interceptors.response.use(
   (error) => {
     if (error.response?.status === 401) {
       clearAuth()
-      window.location.href = '/admin/login'
+      window.location.href = '/login'
     }
     return Promise.reject(error)
   }
