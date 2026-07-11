@@ -20,15 +20,15 @@ mkdir -p /data
 # Navigate to backend directory
 cd /workspace/ai-news-backend
 
-echo "Installing dependencies..."
-pip install --no-cache-dir -r requirements.txt 2>&1 | tail -5
-pip install --no-cache-dir apscheduler uvicorn gunicorn 2>&1 | tail -5
+echo "Installing dependencies into venv..."
+venv/bin/pip install --no-cache-dir -r requirements.txt 2>&1 | tail -5
+venv/bin/pip install --no-cache-dir apscheduler uvicorn gunicorn 2>&1 | tail -5
 
 echo "Initializing database..."
-python seed_complete.py 2>&1 || python seed_deploy.py 2>&1 || echo "Database init completed (or already initialized)"
+venv/bin/python seed_complete.py 2>&1 || venv/bin/python seed_deploy.py 2>&1 || echo "Database init completed (or already initialized)"
 
 echo "Testing application import..."
-python -c "from app.main import app; print('Import successful')" 2>&1
+venv/bin/python -c "from app.main import app; print('Import successful')" 2>&1
 
 echo "Starting application on port 7860..."
 echo "Access URL will be available at the forwarded port"
