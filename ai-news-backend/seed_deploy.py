@@ -20,7 +20,7 @@ def seed():
             db.add(Admin(
                 username="admin",
                 password_hash=hash_password("admin123"),
-                status="active",
+                is_active=1,
                 role="super_admin",
             ))
             print("[SEED] Admin user: admin / admin123")

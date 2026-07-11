@@ -25,7 +25,7 @@ pip install --no-cache-dir -r requirements.txt 2>&1 | tail -5
 pip install --no-cache-dir apscheduler uvicorn gunicorn 2>&1 | tail -5
 
 echo "Initializing database..."
-python seed_deploy.py 2>&1 || echo "Database init completed (or already initialized)"
+python seed_complete.py 2>&1 || python seed_deploy.py 2>&1 || echo "Database init completed (or already initialized)"
 
 echo "Testing application import..."
 python -c "from app.main import app; print('Import successful')" 2>&1

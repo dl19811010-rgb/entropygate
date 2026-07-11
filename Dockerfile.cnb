@@ -7,6 +7,7 @@ RUN pip install --no-cache-dir -r requirements.txt && pip install --no-cache-dir
 
 COPY ai-news-backend/ ./ai-news-backend/
 COPY ai-news-frontend/dist/ ./ai-news-frontend/dist/
+COPY ai-news-admin/dist/ ./ai-news-admin/dist/
 
 RUN mkdir -p /data
 ENV DATABASE_URL=sqlite:////data/ainews.db

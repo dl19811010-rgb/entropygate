@@ -98,26 +98,62 @@ app.include_router(tools.router, prefix=_API_PREFIX)
 app.include_router(upload.router, prefix=_API_PREFIX)
 
 
-# ── Root ────────────────────────────────────────────────────
-@app.get("/")
-async def root():
-    return success_response({
-        "app": settings.APP_NAME,
-        "version": settings.APP_VERSION,
-        "environment": settings.ENVIRONMENT,
-    })
-
-
-# ── Frontend Static Files ────────────────────────────────────
-# Mount admin frontend at /admin (must come before the catch-all / mount)
+# ── Static Files & SPA Routing ───────────────────────────────
 _base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 frontends_dir = os.path.join(_base_dir, "ai-news-frontend", "dist")
 admin_dir = os.path.join(_base_dir, "ai-news-admin", "dist")
 
-# Admin panel at /admin
-if os.path.exists(admin_dir):
-    app.mount("/admin", StaticFiles(directory=admin_dir, html=True), name="admin")
+_admin_exists = os.path.exists(os.path.join(admin_dir, "index.html"))
+_frontend_exists = os.path.exists(os.path.join(frontends_dir, "index.html"))
 
-# Main frontend at / (catch-all, must be last)
-if os.path.exists(frontends_dir):
-    app.mount("/", StaticFiles(directory=frontends_dir, html=True), name="frontend")
+# Mount static asset directories (CSS, JS chunks)
+if os.path.exists(os.path.join(admin_dir, "assets")):
+    app.mount("/admin/assets", StaticFiles(directory=os.path.join(admin_dir, "assets")), name="admin-assets")
+
+if os.path.exists(os.path.join(frontends_dir, "assets")):
+    app.mount("/assets", StaticFiles(directory=os.path.join(frontends_dir, "assets")), name="frontend-assets")
+
+# Serve known root-level static files from frontend dist
+if _frontend_exists:
+    @app.get("/favicon.svg")
+    async def _favicon():
+        return FileResponse(os.path.join(frontends_dir, "favicon.svg"))
+
+    @app.get("/icons.svg")
+    async def _icons():
+        return FileResponse(os.path.join(frontends_dir, "icons.svg"))
+
+# Admin SPA catch-all — must come before the frontend catch-all
+if _admin_exists:
+    @app.get("/admin")
+    async def _admin_root():
+        return FileResponse(os.path.join(admin_dir, "index.html"))
+
+    @app.get("/admin/{full_path:path}")
+    async def _admin_spa(full_path: str):
+        candidate = os.path.join(admin_dir, full_path)
+        if full_path and os.path.isfile(candidate):
+            return FileResponse(candidate)
+        return FileResponse(os.path.join(admin_dir, "index.html"))
+
+# Frontend SPA catch-all — must be last (serves index.html for all unknown paths)
+if _frontend_exists:
+    @app.get("/{full_path:path}")
+    async def _frontend_spa(full_path: str):
+        # Don't intercept API 404s — return proper JSON error
+        if full_path.startswith("api/"):
+            from fastapi.responses import JSONResponse
+            return JSONResponse({"detail": "Not Found"}, status_code=404)
+        candidate = os.path.join(frontends_dir, full_path)
+        if full_path and os.path.isfile(candidate):
+            return FileResponse(candidate)
+        return FileResponse(os.path.join(frontends_dir, "index.html"))
+else:
+    # Development fallback — no dist built yet
+    @app.get("/")
+    async def root():
+        return success_response({
+            "app": settings.APP_NAME,
+            "version": settings.APP_VERSION,
+            "environment": settings.ENVIRONMENT,
+        })

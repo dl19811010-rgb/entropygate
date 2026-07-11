@@ -1,17 +1,17 @@
 import request from './request'
 
 export function login(data) {
-  return request.post('/admin/auth/login', data)
+  return request.post('/admin/login', data)
 }
 
 export function getCurrentAdmin() {
-  return request.get('/admin/auth/me')
+  return request.get('/admins/me')
 }
 
 export function changePassword(data) {
-  return request.post('/admin/auth/change-password', data)
+  return request.post('/admins/change-password', data)
 }
 
 export function logout() {
-  return request.post('/admin/auth/logout')
+  return request.post('/admin/logout')
 }
