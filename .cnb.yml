@@ -1,22 +1,29 @@
 $:
   push:
     - stages:
-        - name: "Build Docker image"
-          docker:
-            build: ./Dockerfile.cnb
+        - name: "Install system dependencies"
+          image: python:3.11-slim
+          script:
+            - apt-get update && apt-get install -y curl git ca-certificates
+            - pip install --no-cache-dir -r ai-news-backend/requirements.txt
+            - pip install --no-cache-dir apscheduler uvicorn gunicorn
+            - cd ai-news-backend && python seed_deploy.py || true && cd ..
+            - echo "BUILD_COMPLETE"
           runner:
             cpus: 2
-            memory: 4G
+            memory: 2G
   vscode:
-    - docker:
-        build: ./Dockerfile.cnb
-        runner:
-          cpus: 2
-          memory: 2G
-        services:
-          - vscode
-        stages:
-          - name: "Start application"
-            script: cd ai-news-backend && gunicorn -w 2 -k uvicorn.workers.UvicornWorker app.main:app --bind 0.0.0.0:7860
-        ports:
-          - "7860"
+    - stages:
+        - name: "Start application"
+          image: python:3.11-slim
+          script:
+            - apt-get update && apt-get install -y curl git ca-certificates
+            - pip install --no-cache-dir -r ai-news-backend/requirements.txt
+            - pip install --no-cache-dir apscheduler uvicorn gunicorn
+            - cd ai-news-backend && python seed_deploy.py || true && cd ..
+            - cd ai-news-backend && gunicorn -w 2 -k uvicorn.workers.UvicornWorker app.main:app --bind 0.0.0.0:7860
+          ports:
+            - "7860"
+          runner:
+            cpus: 2
+            memory: 2G
