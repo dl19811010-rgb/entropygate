@@ -9,34 +9,38 @@ $:
         - name: "Build frontend and admin"
           script:
             - echo "=== Installing Node.js ==="
-            - curl -fsSL https://deb.nodesource.com/setup_20.x | bash - || echo "Node setup script failed, trying alternative"
-            - apt-get update && apt-get install -y nodejs npm || echo "apt install failed"
-            - node --version || echo "node not found"
-            - npm --version || echo "npm not found"
+            - curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+            - apt-get update && apt-get install -y nodejs
+            - node --version
+            - npm --version
             - echo "=== Building frontend ==="
             - cd /workspace/ai-news-frontend
-            - npm install --registry=https://registry.npmmirror.com || echo "npm install failed"
-            - npm run build || echo "npm build failed"
-            - ls -la dist/ || echo "dist not found"
+            - npm install --registry=https://registry.npmmirror.com
+            - npm run build
+            - ls -la dist/index.html
             - echo "=== Building admin panel ==="
             - cd /workspace/ai-news-admin
-            - npm install --registry=https://registry.npmmirror.com || echo "npm install failed"
-            - npm run build || echo "npm build failed"
-            - ls -la dist/ || echo "dist not found"
+            - npm install --registry=https://registry.npmmirror.com
+            - npm run build
+            - ls -la dist/index.html
             - echo "=== Frontend and admin build complete ==="
         - name: "Install backend dependencies and init DB"
           script:
+            - echo "=== Ensuring Python3 and pip ==="
+            - python3 --version
+            - python3 -m ensurepip --upgrade || apt-get install -y python3-pip
+            - python3 -m pip --version
             - echo "=== Installing Python dependencies ==="
             - cd /workspace/ai-news-backend
-            - pip install --no-cache-dir -r requirements.txt
-            - pip install --no-cache-dir apscheduler uvicorn gunicorn
+            - python3 -m pip install --no-cache-dir -r requirements.txt
+            - python3 -m pip install --no-cache-dir apscheduler uvicorn gunicorn
             - echo "=== Initializing database ==="
-            - python seed_complete.py || echo "DB init done"
+            - python3 seed_complete.py
             - echo "=== Backend ready ==="
       endStages:
         - name: "Start application"
           script:
             - cd /workspace/ai-news-backend
-            - exec gunicorn -w 2 -k uvicorn.workers.UvicornWorker app.main:app --bind 0.0.0.0:7860 --access-logfile - --error-logfile -
+            - exec python3 -m gunicorn -w 2 -k uvicorn.workers.UvicornWorker app.main:app --bind 0.0.0.0:7860 --access-logfile - --error-logfile -
       ports:
         - "7860"
