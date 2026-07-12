@@ -14,9 +14,9 @@ function clearAuth() {
   sessionStorage.removeItem(ADMIN_INFO_KEY)
 }
 
-// 生产环境: HuggingFace Space → 最终 Cloudflare DNS 代理到 api.entropygate.cc.cd
+// 生产环境: CNB 云原生部署，前后端同源
 const baseURL = import.meta.env.PROD
-  ? 'https://dl1010-entropygate.hf.space/api/v1'
+  ? '/api/v1'
   : '/api/v1'
 
 const request = axios.create({

@@ -1,7 +1,10 @@
 """FastAPI Application Entry Point."""
+import os
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 from app.core.config import settings
 from app.core.database import create_all
@@ -74,10 +77,49 @@ app.include_router(crawler.router)
 
 
 # ── Root ────────────────────────────────────────────────────
+@app.get("/api/v1/health")
+async def health():
+    return success_response({"status": "ok"})
+
+
+# ── Static Files (Frontend & Admin) ─────────────────────────
+FRONTEND_DIST = "/workspace/ai-news-frontend/dist"
+ADMIN_DIST = "/workspace/ai-news-admin/dist"
+
+# Mount static assets (js, css, images)
+if os.path.isdir(os.path.join(FRONTEND_DIST, "assets")):
+    app.mount("/assets", StaticFiles(directory=os.path.join(FRONTEND_DIST, "assets")), name="frontend-assets")
+if os.path.isdir(os.path.join(ADMIN_DIST, "assets")):
+    app.mount("/admin/assets", StaticFiles(directory=os.path.join(ADMIN_DIST, "assets")), name="admin-assets")
+
+
 @app.get("/")
-async def root():
-    return success_response({
-        "app": settings.APP_NAME,
-        "version": settings.APP_VERSION,
-        "environment": settings.ENVIRONMENT,
-    })
+async def frontend_index():
+    """Serve frontend index.html"""
+    index_path = os.path.join(FRONTEND_DIST, "index.html")
+    if os.path.isfile(index_path):
+        return FileResponse(index_path)
+    return JSONResponse({"message": "Frontend not built. API is running."}, status_code=200)
+
+
+@app.get("/admin/{full_path:path}")
+async def admin_spa(full_path: str):
+    """Serve admin SPA - all routes return index.html"""
+    # Try to serve a real file first
+    file_path = os.path.join(ADMIN_DIST, full_path)
+    if full_path and os.path.isfile(file_path):
+        return FileResponse(file_path)
+    # Fallback to index.html for SPA routing
+    index_path = os.path.join(ADMIN_DIST, "index.html")
+    if os.path.isfile(index_path):
+        return FileResponse(index_path)
+    return JSONResponse({"message": "Admin not built."}, status_code=404)
+
+
+@app.get("/admin")
+async def admin_root():
+    """Redirect /admin to /admin/"""
+    index_path = os.path.join(ADMIN_DIST, "index.html")
+    if os.path.isfile(index_path):
+        return FileResponse(index_path)
+    return JSONResponse({"message": "Admin not built."}, status_code=404)
