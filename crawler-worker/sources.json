@@ -8,13 +8,13 @@
   {
     "name": "The Batch (deeplearning.ai)",
     "parser_type": "rss",
-    "feed_url": "https://www.deeplearning.ai/the-batch/feed/",
+    "feed_url": "https://www.deeplearning.ai/feed/",
     "language": "en"
   },
   {
     "name": "OpenAI Blog",
     "parser_type": "rss",
-    "feed_url": "https://openai.com/blog/rss.xml",
+    "feed_url": "https://openai.com/news/rss.xml",
     "language": "en"
   },
   {
@@ -38,7 +38,7 @@
   {
     "name": "Meta AI Blog",
     "parser_type": "rss",
-    "feed_url": "https://ai.meta.com/blog/rss/",
+    "feed_url": "https://ai.meta.com/blog/rss.xml",
     "language": "en"
   }
 ]
