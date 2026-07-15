@@ -1,1 +1,12 @@
-[]
+[
+  "https://huggingface.co/blog/Photoroom/prx-part4-data",
+  "https://huggingface.co/blog/amazon/one-click-to-sagemaker-studio",
+  "https://huggingface.co/blog/lerobot-release-v060",
+  "https://huggingface.co/blog/microsoft/foundry-managed-compute",
+  "https://huggingface.co/blog/native-speed-vllm-transformers-backend",
+  "https://huggingface.co/blog/nvidia/open-data-for-agents",
+  "https://huggingface.co/blog/real-world-voiceeq",
+  "https://huggingface.co/blog/revamped-kernels",
+  "https://huggingface.co/blog/skypilot-hf-storage",
+  "https://huggingface.co/blog/torch-attention-profile"
+]

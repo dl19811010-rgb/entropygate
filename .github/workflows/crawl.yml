@@ -39,6 +39,7 @@ jobs:
           python worker.py
 
       - name: Commit seen_urls back
+        if: always()
         run: |
           git config user.name "crawler-worker[bot]"
           git config user.email "bot@entropygate.cc"
