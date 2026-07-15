@@ -7,8 +7,8 @@
   },
   {
     "name": "The Batch (deeplearning.ai)",
-    "parser_type": "playwright",
-    "feed_url": "https://www.deeplearning.ai/feed/",
+    "parser_type": "playwright_html",
+    "list_url": "https://www.deeplearning.ai/the-batch/",
     "language": "en"
   },
   {
@@ -19,8 +19,8 @@
   },
   {
     "name": "Anthropic News",
-    "parser_type": "playwright",
-    "feed_url": "https://www.anthropic.com/news/rss.xml",
+    "parser_type": "playwright_html",
+    "list_url": "https://www.anthropic.com/news",
     "language": "en"
   },
   {
@@ -37,8 +37,8 @@
   },
   {
     "name": "Meta AI Blog",
-    "parser_type": "playwright",
-    "feed_url": "https://ai.meta.com/blog/rss.xml",
+    "parser_type": "playwright_html",
+    "list_url": "https://ai.meta.com/blog/",
     "language": "en"
   }
 ]

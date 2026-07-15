@@ -372,26 +372,53 @@ class FeedFetcher:
                 "enable javascript and cookies to continue",
                 "attention required",
                 "checking your browser",
+                "performance & security by cloudflare",
+                "ddos-guard",
+                "you are being rate limited",
+                "access denied",
+                "request unavailable",
+                "ray id",
+                "why am i seeing this",
+                "are you a robot",
+                "automated access",
             )
         )
 
-    def _pw_text(self, url: str, timeout: int = 35) -> str:
+    @staticmethod
+    def _looks_blocked(feed_url: str, html: str) -> bool:
+        """True when an .xml/.rss feed URL returned an HTML page (i.e. a
+        block / Cloudflare challenge page instead of the actual feed)."""
+        if not (
+            feed_url.endswith(".xml")
+            or feed_url.endswith(".rss")
+            or "/rss" in feed_url
+            or "/feed" in feed_url
+        ):
+            return False
+        low = (html or "").lower().lstrip()
+        return low.startswith("<!doctype html") or low.startswith("<html")
+
+    def _pw_text(self, url: str, timeout: int = 40, retry: bool = True) -> str:
         """Load a URL in real Chromium and return the rendered HTML.
 
-        Waits out Cloudflare's JS "waiting room" and retries once if a
-        challenge is still showing. Returns whatever HTML the page has.
+        Uses domcontentloaded (networkidle can hang forever on CF JS). Waits
+        out Cloudflare's JS "waiting room"; if a challenge is still showing and
+        ``retry`` is set, reloads once. Returns whatever HTML the page has.
         """
         page, ctx = self._pw_page()
         try:
-            page.goto(url, wait_until="networkidle", timeout=timeout * 1000)
+            page.goto(url, wait_until="domcontentloaded", timeout=timeout * 1000)
             # Give any deferred CF JS challenge time to resolve.
-            time.sleep(3)
+            time.sleep(5)
             html = page.content()
-            if self._is_challenge(html):
+            if self._is_challenge(html) and retry:
                 logger.warning("CF challenge detected on %s, waiting + reload", url)
                 time.sleep(6)
-                page.reload(wait_until="networkidle")
-                time.sleep(2)
+                try:
+                    page.reload(wait_until="domcontentloaded", timeout=min(timeout, 25) * 1000)
+                except Exception:
+                    pass
+                time.sleep(3)
                 html = page.content()
             return html
         finally:
@@ -405,8 +432,8 @@ class FeedFetcher:
         try:
             logger.info("Playwright RSS: %s", feed_url)
             html = self._pw_text(feed_url)
-            if self._is_challenge(html):
-                logger.warning("Still behind challenge after retry: %s", feed_url)
+            if self._is_challenge(html) or self._looks_blocked(feed_url, html):
+                logger.warning("Feed blocked / not XML (challenge?) %s", feed_url)
                 return []
             feed = feedparser.parse(html)
             if feed.bozo != 0:
@@ -443,7 +470,7 @@ class FeedFetcher:
                     href = urljoin(list_url, href)
                 text = a.get_text(strip=True)
                 if not re.search(
-                    r"/(news|blog|post|article|research|press|publication|release|announce)/",
+                    r"/(news|blog|post|article|research|press|publication|release|announce|the-batch|issue|edition|newsletter|index)/",
                     href,
                 ):
                     continue
@@ -539,7 +566,7 @@ class FeedFetcher:
             logger.error("playwright unavailable; cannot fetch %s", url)
             return result
         try:
-            html = self._pw_text(url, timeout)
+            html = self._pw_text(url, timeout, retry=False)
             if self._is_challenge(html):
                 logger.warning("Article still behind challenge: %s", url)
                 return result
