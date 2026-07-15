@@ -9,6 +9,16 @@ from bs4 import BeautifulSoup
 
 logger = logging.getLogger(__name__)
 
+import re
+import time
+
+# Playwright is optional — only required for Cloudflare/bot-protected sources.
+try:
+    from playwright.sync_api import sync_playwright  # type: ignore
+    _HAVE_PLAYWRIGHT = True
+except Exception:  # pragma: no cover
+    _HAVE_PLAYWRIGHT = False
+
 HTTP_TIMEOUT = 30
 USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
 
@@ -65,8 +75,32 @@ class FeedFetcher:
             self._proxy_clients[proxy] = cached
         return cached
 
+    def _build_entries(self, feed) -> List[Dict[str, Any]]:
+        """Turn a parsed feedparser feed into a list of article dicts."""
+        entries = []
+        for entry in feed.entries:
+            summary = getattr(entry, "summary", "")
+            content = self._extract_content(entry)
+            # Fallback: if the feed has no summary but has inline content,
+            # derive a short summary so the homepage card is never empty.
+            if not summary and content:
+                summary = content[:280]
+
+            article = {
+                "title": getattr(entry, "title", ""),
+                "url": getattr(entry, "link", ""),
+                "published_at": self._parse_date(entry),
+                "summary": summary,
+                "content": content,
+                "image_url": self._extract_image(entry),
+                "author": getattr(entry, "author", ""),
+            }
+            if article["title"] and article["url"]:
+                entries.append(article)
+        return entries[:20]
+
     def fetch_rss(self, feed_url: str, proxy: Optional[str] = None) -> Optional[List[Dict[str, Any]]]:
-        """Fetch and parse an RSS/Atom feed."""
+        """Fetch and parse an RSS/Atom feed via plain HTTP."""
         try:
             logger.debug("Fetching RSS: %s (proxy=%s)", feed_url, proxy)
             response = self._client(proxy).get(feed_url)
@@ -77,29 +111,9 @@ class FeedFetcher:
             if feed.bozo != 0:
                 logger.warning("Feed parsing warning for %s: %s", feed_url, feed.bozo_exception)
 
-            entries = []
-            for entry in feed.entries:
-                summary = getattr(entry, "summary", "")
-                content = self._extract_content(entry)
-                # Fallback: if the feed has no summary but has inline content,
-                # derive a short summary so the homepage card is never empty.
-                if not summary and content:
-                    summary = content[:280]
-
-                article = {
-                    "title": getattr(entry, "title", ""),
-                    "url": getattr(entry, "link", ""),
-                    "published_at": self._parse_date(entry),
-                    "summary": summary,
-                    "content": content,
-                    "image_url": self._extract_image(entry),
-                    "author": getattr(entry, "author", ""),
-                }
-                if article["title"] and article["url"]:
-                    entries.append(article)
-
+            entries = self._build_entries(feed)
             logger.info("Fetched %d articles from RSS: %s", len(entries), feed_url)
-            return entries[:20]
+            return entries
 
         except Exception as e:
             logger.error("Failed to fetch RSS %s: %s", feed_url, e)
@@ -306,9 +320,248 @@ class FeedFetcher:
                     return text.strip()
         return ""
 
+    # ── Playwright path (Cloudflare / bot-protected sources) ──────────
+    # Lazily-started (playwright, browser) tuple, reused across all sources
+    # in a single run so we only launch Chromium once.
+    _PW = None
+
+    def _pw_browser(self):
+        if not _HAVE_PLAYWRIGHT:
+            raise RuntimeError("playwright is not installed in this environment")
+        if self._PW is None:
+            p = sync_playwright().start()
+            browser = p.chromium.launch(
+                headless=True,
+                args=[
+                    "--disable-blink-features=AutomationControlled",
+                    "--no-sandbox",
+                    "--disable-dev-shm-usage",
+                ],
+            )
+            self._PW = (p, browser)
+        return self._PW[1]
+
+    def _pw_page(self):
+        browser = self._pw_browser()
+        ctx = browser.new_context(
+            user_agent=(
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+            ),
+            viewport={"width": 1366, "height": 768},
+            locale="en-US",
+            timezone_id="America/New_York",
+        )
+        page = ctx.new_page()
+        # Mask the automation flag so basic bot checks don't trip.
+        page.add_init_script(
+            "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"
+        )
+        return page, ctx
+
+    @staticmethod
+    def _is_challenge(html: str) -> bool:
+        low = (html or "").lower()
+        return any(
+            k in low
+            for k in (
+                "just a moment",
+                "verify you are human",
+                "cf-chl",
+                "challenge-platform",
+                "enable javascript and cookies to continue",
+                "attention required",
+                "checking your browser",
+            )
+        )
+
+    def _pw_text(self, url: str, timeout: int = 35) -> str:
+        """Load a URL in real Chromium and return the rendered HTML.
+
+        Waits out Cloudflare's JS "waiting room" and retries once if a
+        challenge is still showing. Returns whatever HTML the page has.
+        """
+        page, ctx = self._pw_page()
+        try:
+            page.goto(url, wait_until="networkidle", timeout=timeout * 1000)
+            # Give any deferred CF JS challenge time to resolve.
+            time.sleep(3)
+            html = page.content()
+            if self._is_challenge(html):
+                logger.warning("CF challenge detected on %s, waiting + reload", url)
+                time.sleep(6)
+                page.reload(wait_until="networkidle")
+                time.sleep(2)
+                html = page.content()
+            return html
+        finally:
+            ctx.close()
+
+    def fetch_rss_playwright(self, feed_url: str) -> Optional[List[Dict[str, Any]]]:
+        """Fetch an RSS/Atom feed through a real browser (beats Cloudflare)."""
+        if not _HAVE_PLAYWRIGHT:
+            logger.error("playwright unavailable; cannot fetch %s", feed_url)
+            return None
+        try:
+            logger.info("Playwright RSS: %s", feed_url)
+            html = self._pw_text(feed_url)
+            if self._is_challenge(html):
+                logger.warning("Still behind challenge after retry: %s", feed_url)
+                return []
+            feed = feedparser.parse(html)
+            if feed.bozo != 0:
+                logger.warning("Playwright feed warning %s: %s", feed_url, feed.bozo_exception)
+            entries = self._build_entries(feed)
+            logger.info("Playwright fetched %d from %s", len(entries), feed_url)
+            return entries
+        except Exception as e:
+            logger.error("Playwright RSS failed %s: %s", feed_url, e)
+            return None
+
+    def fetch_playwright_links(self, list_url: str) -> Optional[List[Dict[str, Any]]]:
+        """Heuristic article-link extraction from a rendered listing page.
+
+        Used when a source has no usable RSS feed (e.g. a newsletter page).
+        Picks <a> links whose path looks article-like and whose text reads
+        like a headline.
+        """
+        if not _HAVE_PLAYWRIGHT:
+            logger.error("playwright unavailable; cannot fetch %s", list_url)
+            return None
+        try:
+            logger.info("Playwright links: %s", list_url)
+            html = self._pw_text(list_url)
+            if self._is_challenge(html):
+                logger.warning("Still behind challenge: %s", list_url)
+                return []
+            soup = BeautifulSoup(html, "lxml")
+            seen: set = set()
+            entries = []
+            for a in soup.find_all("a", href=True):
+                href = a["href"].strip()
+                if not href.startswith("http"):
+                    href = urljoin(list_url, href)
+                text = a.get_text(strip=True)
+                if not re.search(
+                    r"/(news|blog|post|article|research|press|publication|release|announce)/",
+                    href,
+                ):
+                    continue
+                if not (8 <= len(text) <= 140):
+                    continue
+                if href in seen:
+                    continue
+                seen.add(href)
+                entries.append({"title": text, "url": href, "summary": "", "content": ""})
+            logger.info("Playwright links %d from %s", len(entries), list_url)
+            return entries[:20]
+        except Exception as e:
+            logger.error("Playwright links failed %s: %s", list_url, e)
+            return None
+
+    def _extract_body(self, soup, url: str):
+        """Return (content_text, images_list) from a parsed article page.
+
+        Shared by both the HTTP and Playwright full-text fetchers.
+        """
+        for tag in soup(["script", "style", "nav", "header", "footer", "aside"]):
+            tag.decompose()
+
+        content_selectors = [
+            "article",
+            ".article-content",
+            ".post-content",
+            ".entry-content",
+            ".content-body",
+            "div[class*='content']",
+            "main",
+            "#content",
+        ]
+        content_elem = None
+        for selector in content_selectors:
+            content_elem = soup.select_one(selector)
+            if content_elem:
+                break
+
+        content = None
+        if content_elem:
+            text = content_elem.get_text(separator="\n", strip=True)
+            if len(text) > 100:
+                content = text
+        if not content:
+            paragraphs = soup.find_all("p")
+            if paragraphs:
+                text = "\n\n".join(p.get_text(strip=True) for p in paragraphs)
+                if len(text) > 100:
+                    content = text
+
+        img_root = content_elem or soup
+        seen: set = set()
+        images = []
+        for img in img_root.find_all("img"):
+            src = (
+                img.get("src")
+                or img.get("data-src")
+                or img.get("data-lazy-src")
+                or img.get("data-original")
+            )
+            if not src or src.startswith("data:"):
+                continue
+            if src.startswith("//"):
+                src = "https:" + src
+            abs_src = urljoin(url, src)
+            w = img.get("width")
+            h = img.get("height")
+            try:
+                if (w and int(w) <= 1) or (h and int(h) <= 1):
+                    continue
+            except (TypeError, ValueError):
+                pass
+            low = abs_src.lower()
+            if any(t in low for t in ("pixel", "tracking", "beacon", "1x1", "spacer.gif")):
+                continue
+            if abs_src in seen:
+                continue
+            seen.add(abs_src)
+            images.append({"url": abs_src, "alt": (img.get("alt") or "").strip()})
+            if len(images) >= 12:
+                break
+        if not images:
+            og = soup.find("meta", attrs={"property": "og:image"})
+            if og and og.get("content"):
+                images.append({"url": urljoin(url, og["content"]), "alt": ""})
+        return content, images
+
+    def fetch_article_full_playwright(self, url: str, timeout: int = 40) -> Dict[str, Any]:
+        """Fetch the full article body through a real browser."""
+        result: Dict[str, Any] = {"content": None, "images": []}
+        if not _HAVE_PLAYWRIGHT:
+            logger.error("playwright unavailable; cannot fetch %s", url)
+            return result
+        try:
+            html = self._pw_text(url, timeout)
+            if self._is_challenge(html):
+                logger.warning("Article still behind challenge: %s", url)
+                return result
+            soup = BeautifulSoup(html, "lxml")
+            content, images = self._extract_body(soup, url)
+            result["content"] = content
+            result["images"] = images
+            return result
+        except Exception as e:
+            logger.warning("Playwright full article failed %s: %s", url, e)
+            return result
+
     def close(self):
-        """Close HTTP client."""
+        """Close HTTP client and any Playwright browser."""
         self.client.close()
+        if self._PW is not None:
+            try:
+                self._PW[1].close()
+                self._PW[0].stop()
+            except Exception:
+                pass
+            self._PW = None
 
 
 feed_fetcher = FeedFetcher()

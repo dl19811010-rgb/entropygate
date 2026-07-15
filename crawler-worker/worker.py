@@ -113,11 +113,16 @@ def main() -> None:
     for src in sources:
         name = src.get("name", "?")
         ptype = src.get("parser_type", "rss")
+        use_pw = ptype in ("playwright", "playwright_html")
         try:
             if ptype == "rss":
                 entries = feed_fetcher.fetch_rss(src["feed_url"]) or []
             elif ptype == "html":
                 entries = feed_fetcher.fetch_html(src["list_url"], src.get("selectors", {})) or []
+            elif ptype == "playwright":
+                entries = feed_fetcher.fetch_rss_playwright(src["feed_url"]) or []
+            elif ptype == "playwright_html":
+                entries = feed_fetcher.fetch_playwright_links(src["list_url"]) or []
             else:
                 entries = []
         except Exception as e:
@@ -138,7 +143,10 @@ def main() -> None:
             # Full-text capture when the feed only carried a summary.
             if len(content) < 300 and e.get("url"):
                 try:
-                    full = feed_fetcher.fetch_article_full(e["url"])
+                    if use_pw:
+                        full = feed_fetcher.fetch_article_full_playwright(e["url"])
+                    else:
+                        full = feed_fetcher.fetch_article_full(e["url"])
                     if full.get("content"):
                         content = full["content"]
                         imgs = full.get("images", [])
@@ -177,6 +185,10 @@ def main() -> None:
         time.sleep(1)
 
     save_seen(seen)
+    try:
+        feed_fetcher.close()
+    except Exception:
+        pass
     log.info("==== RESULT SUMMARY ====")
     for name, fetched, posted, skipped, err in rows:
         log.info("RESULT source=%s fetched=%s posted=%s skipped=%s err=%s",

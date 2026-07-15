@@ -7,19 +7,19 @@
   },
   {
     "name": "The Batch (deeplearning.ai)",
-    "parser_type": "rss",
+    "parser_type": "playwright",
     "feed_url": "https://www.deeplearning.ai/feed/",
     "language": "en"
   },
   {
     "name": "OpenAI Blog",
-    "parser_type": "rss",
+    "parser_type": "playwright",
     "feed_url": "https://openai.com/news/rss.xml",
     "language": "en"
   },
   {
     "name": "Anthropic News",
-    "parser_type": "rss",
+    "parser_type": "playwright",
     "feed_url": "https://www.anthropic.com/news/rss.xml",
     "language": "en"
   },
@@ -37,7 +37,7 @@
   },
   {
     "name": "Meta AI Blog",
-    "parser_type": "rss",
+    "parser_type": "playwright",
     "feed_url": "https://ai.meta.com/blog/rss.xml",
     "language": "en"
   }
