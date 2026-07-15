@@ -1,0 +1,44 @@
+[
+  {
+    "name": "Hugging Face Blog",
+    "parser_type": "rss",
+    "feed_url": "https://huggingface.co/blog/feed.xml",
+    "language": "en"
+  },
+  {
+    "name": "The Batch (deeplearning.ai)",
+    "parser_type": "rss",
+    "feed_url": "https://www.deeplearning.ai/the-batch/feed/",
+    "language": "en"
+  },
+  {
+    "name": "OpenAI Blog",
+    "parser_type": "rss",
+    "feed_url": "https://openai.com/blog/rss.xml",
+    "language": "en"
+  },
+  {
+    "name": "Anthropic News",
+    "parser_type": "rss",
+    "feed_url": "https://www.anthropic.com/news/rss.xml",
+    "language": "en"
+  },
+  {
+    "name": "Google DeepMind Blog",
+    "parser_type": "rss",
+    "feed_url": "https://deepmind.google/blog/rss.xml",
+    "language": "en"
+  },
+  {
+    "name": "Google AI Blog",
+    "parser_type": "rss",
+    "feed_url": "https://blog.google/technology/ai/rss/",
+    "language": "en"
+  },
+  {
+    "name": "Meta AI Blog",
+    "parser_type": "rss",
+    "feed_url": "https://ai.meta.com/blog/rss/",
+    "language": "en"
+  }
+]

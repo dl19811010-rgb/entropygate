@@ -1,0 +1,49 @@
+name: Crawler Worker (US egress)
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  crawl:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.PAT }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r crawler-worker/requirements.txt
+
+      - name: Run crawler
+        env:
+          STUDIO_BASE_URL: ${{ secrets.STUDIO_BASE_URL }}
+          STUDIO_ADMIN_PASSWORD: ${{ secrets.STUDIO_ADMIN_PASSWORD }}
+          PER_SOURCE_CAP: "10"
+          GLOBAL_CAP: "40"
+        run: |
+          cd crawler-worker
+          python worker.py
+
+      - name: Commit seen_urls back
+        run: |
+          git config user.name "crawler-worker[bot]"
+          git config user.email "bot@entropygate.cc"
+          git remote set-url origin "https://${{ secrets.PAT }}@github.com/${{ github.repository }}.git"
+          git add crawler-worker/seen_urls.json
+          git diff --cached --quiet || git commit -m "chore: update crawler seen_urls [skip ci]"
+          git push
+        continue-on-error: true
