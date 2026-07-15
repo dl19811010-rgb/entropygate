@@ -6,6 +6,7 @@ import feedparser
 from email.utils import parsedate_to_datetime
 from typing import Dict, List, Optional, Any
 from bs4 import BeautifulSoup
+from urllib.parse import urljoin
 
 logger = logging.getLogger(__name__)
 
@@ -398,16 +399,21 @@ class FeedFetcher:
         low = (html or "").lower().lstrip()
         return low.startswith("<!doctype html") or low.startswith("<html")
 
-    def _pw_text(self, url: str, timeout: int = 40, retry: bool = True) -> str:
+    def _pw_text(self, url: str, timeout: int = 40, retry: bool = True,
+                 wait: str = "domcontentloaded") -> str:
         """Load a URL in real Chromium and return the rendered HTML.
 
-        Uses domcontentloaded (networkidle can hang forever on CF JS). Waits
-        out Cloudflare's JS "waiting room"; if a challenge is still showing and
-        ``retry`` is set, reloads once. Returns whatever HTML the page has.
+        ``wait`` is the Playwright wait condition:
+          * "networkidle" — for RSS/Atom feeds (OpenAI etc. need the CF JS to
+            finish before the XML is served), but can hang on challenge pages.
+          * "domcontentloaded" — for HTML listing/article pages that may sit
+            behind a perpetual CF JS challenge.
+        Waits out Cloudflare's JS "waiting room"; if a challenge is still
+        showing and ``retry`` is set, reloads once. Returns whatever HTML.
         """
         page, ctx = self._pw_page()
         try:
-            page.goto(url, wait_until="domcontentloaded", timeout=timeout * 1000)
+            page.goto(url, wait_until=wait, timeout=timeout * 1000)
             # Give any deferred CF JS challenge time to resolve.
             time.sleep(5)
             html = page.content()
@@ -415,7 +421,7 @@ class FeedFetcher:
                 logger.warning("CF challenge detected on %s, waiting + reload", url)
                 time.sleep(6)
                 try:
-                    page.reload(wait_until="domcontentloaded", timeout=min(timeout, 25) * 1000)
+                    page.reload(wait_until=wait, timeout=min(timeout, 25) * 1000)
                 except Exception:
                     pass
                 time.sleep(3)
@@ -431,7 +437,7 @@ class FeedFetcher:
             return None
         try:
             logger.info("Playwright RSS: %s", feed_url)
-            html = self._pw_text(feed_url)
+            html = self._pw_text(feed_url, wait="networkidle")
             if self._is_challenge(html) or self._looks_blocked(feed_url, html):
                 logger.warning("Feed blocked / not XML (challenge?) %s", feed_url)
                 return []
@@ -457,7 +463,7 @@ class FeedFetcher:
             return None
         try:
             logger.info("Playwright links: %s", list_url)
-            html = self._pw_text(list_url)
+            html = self._pw_text(list_url, wait="domcontentloaded")
             if self._is_challenge(html):
                 logger.warning("Still behind challenge: %s", list_url)
                 return []
@@ -566,7 +572,7 @@ class FeedFetcher:
             logger.error("playwright unavailable; cannot fetch %s", url)
             return result
         try:
-            html = self._pw_text(url, timeout, retry=False)
+            html = self._pw_text(url, timeout, retry=False, wait="domcontentloaded")
             if self._is_challenge(html):
                 logger.warning("Article still behind challenge: %s", url)
                 return result
