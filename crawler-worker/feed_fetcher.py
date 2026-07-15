@@ -474,7 +474,10 @@ class FeedFetcher:
                 href = a["href"].strip()
                 if not href.startswith("http"):
                     href = urljoin(list_url, href)
-                text = a.get_text(strip=True)
+                # Prefer a heading child (clean title) over the raw link text,
+                # which on some sites concatenates date/category prefixes.
+                heading = a.find(["h1", "h2", "h3", "h4"])
+                text = (heading.get_text(strip=True) if heading else a.get_text(strip=True))
                 if not re.search(
                     r"/(news|blog|post|article|research|press|publication|release|announce|the-batch|issue|edition|newsletter|index)/",
                     href,
