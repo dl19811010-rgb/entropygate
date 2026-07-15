@@ -120,6 +120,82 @@ class FeedFetcher:
             logger.error("Failed to fetch RSS %s: %s", feed_url, e)
             return None
 
+    # RSSHub public instances tried in order. RSSHub fetches the origin from
+    # its OWN IP (often residential-grade / already trusted by Cloudflare) and
+    # returns clean RSS with the FULL article body inside <description>, so we
+    # never touch the Cloudflare-hard-blocked origin (openai.com /
+    # deeplearning.ai) at all.
+    RSSHUB_INSTANCES = [
+        "https://rsshub.app",
+        "https://rsshub.rssforever.com",
+        "https://hub.slarker.me",
+        "https://rsshub.rss.tips",
+    ]
+
+    def fetch_rsshub(
+        self,
+        route: str,
+        instances: Optional[List[str]] = None,
+    ) -> Optional[List[Dict[str, Any]]]:
+        """Fetch a feed through RSSHub, trying multiple public instances.
+
+        RSSHub returns clean XML with the full article HTML in the item
+        description, so the returned entries already carry the full body in
+        ``content`` (promoted from summary when needed) — the worker must NOT
+        re-fetch the origin for these sources.
+        """
+        route = "/" + route.lstrip("/")
+        bases = instances or self.RSSHUB_INSTANCES
+        last_err = None
+        for base in bases:
+            url = base.rstrip("/") + route
+            try:
+                logger.info("RSSHub fetch: %s", url)
+                resp = self._client().get(url)
+                if resp.status_code != 200:
+                    logger.warning("RSSHub %s -> HTTP %s", url, resp.status_code)
+                    last_err = f"HTTP {resp.status_code}"
+                    continue
+                text = resp.text
+                # A RSSHub instance under load returns an HTML error/landing
+                # page instead of XML; skip to the next instance.
+                if "<rss" not in text[:2000] and "<feed" not in text[:2000]:
+                    logger.warning("RSSHub %s -> not XML (instance busy?)", url)
+                    last_err = "not_xml"
+                    continue
+                feed = feedparser.parse(text)
+                entries = []
+                for entry in feed.entries:
+                    summary = getattr(entry, "summary", "") or ""
+                    content = self._extract_content(entry)
+                    # RSSHub packs the full body into description/summary; when
+                    # there is no separate content:encoded, use summary as body.
+                    if len(content) < len(summary):
+                        content = summary
+                    short = re.sub(r"<[^>]+>", "", summary).strip()[:400]
+                    article = {
+                        "title": getattr(entry, "title", ""),
+                        "url": getattr(entry, "link", ""),
+                        "published_at": self._parse_date(entry),
+                        "summary": short,
+                        "content": content,
+                        "image_url": self._extract_image(entry),
+                        "author": getattr(entry, "author", ""),
+                        "from_rsshub": True,
+                    }
+                    if article["title"] and article["url"]:
+                        entries.append(article)
+                logger.info("RSSHub fetched %d from %s", len(entries), url)
+                if entries:
+                    return entries[:20]
+                last_err = "empty"
+            except Exception as e:  # try next instance
+                logger.warning("RSSHub instance failed %s: %s", url, e)
+                last_err = str(e)
+                continue
+        logger.error("All RSSHub instances failed for %s (%s)", route, last_err)
+        return None
+
     def fetch_html(self, list_url: str, selectors: Dict[str, str], proxy: Optional[str] = None) -> Optional[List[Dict[str, Any]]]:
         """Fetch and parse HTML page using selectors."""
         try:

@@ -7,15 +7,14 @@
   },
   {
     "name": "The Batch (deeplearning.ai)",
-    "parser_type": "playwright_html",
-    "list_url": "https://www.deeplearning.ai/the-batch/",
+    "parser_type": "rsshub",
+    "rsshub_route": "/deeplearning/the-batch",
     "language": "en"
   },
   {
     "name": "OpenAI Blog",
-    "parser_type": "playwright",
-    "feed_url": "https://openai.com/news/rss.xml",
-    "list_url": "https://openai.com/news",
+    "parser_type": "rsshub",
+    "rsshub_route": "/openai/news",
     "language": "en"
   },
   {

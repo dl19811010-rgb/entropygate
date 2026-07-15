@@ -117,6 +117,8 @@ def main() -> None:
         try:
             if ptype == "rss":
                 entries = feed_fetcher.fetch_rss(src["feed_url"]) or []
+            elif ptype == "rsshub":
+                entries = feed_fetcher.fetch_rsshub(src["rsshub_route"]) or []
             elif ptype == "html":
                 entries = feed_fetcher.fetch_html(src["list_url"], src.get("selectors", {})) or []
             elif ptype == "playwright":
@@ -145,8 +147,12 @@ def main() -> None:
                 skipped += 1
                 continue
             content = e.get("content") or ""
+            # RSSHub feeds already carry the full body; the origin is
+            # Cloudflare-hard-blocked, so never re-fetch it.
+            if e.get("from_rsshub"):
+                pass
             # Full-text capture when the feed only carried a summary.
-            if len(content) < 300 and e.get("url"):
+            elif len(content) < 300 and e.get("url"):
                 try:
                     if use_pw:
                         full = feed_fetcher.fetch_article_full_playwright(e["url"])
