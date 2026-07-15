@@ -15,6 +15,7 @@
     "name": "OpenAI Blog",
     "parser_type": "playwright",
     "feed_url": "https://openai.com/news/rss.xml",
+    "list_url": "https://openai.com/news",
     "language": "en"
   },
   {

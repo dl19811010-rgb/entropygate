@@ -125,6 +125,11 @@ def main() -> None:
                 entries = feed_fetcher.fetch_playwright_links(src["list_url"]) or []
             else:
                 entries = []
+            # Fallback: a Cloudflare-blocked Playwright RSS feed yields nothing;
+            # retry via the source's listing page if one is configured.
+            if not entries and src.get("list_url"):
+                log.info("[%s] feed empty, falling back to listing page", name)
+                entries = feed_fetcher.fetch_playwright_links(src["list_url"]) or []
         except Exception as e:
             log.warning("[%s] fetch error: %s", name, e)
             rows.append((name, 0, 0, 0, f"fetch_error: {e}"))
