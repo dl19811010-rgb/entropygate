@@ -28,6 +28,7 @@ export async function onRequest(context) {
     if (resp) {
       const h = new Headers(resp.headers);
       h.set("X-Cache", "HIT");
+      h.set("X-Upstream", upstream);
       return new Response(resp.body, { status: resp.status, headers: h });
     }
 
@@ -38,6 +39,7 @@ export async function onRequest(context) {
 
     if (resp.ok) {
       const h = new Headers(resp.headers);
+      h.set("X-Upstream", upstream);
       // Cache public list/detail responses at the edge for 60s
       h.set("Cache-Control", "public, max-age=60");
       h.set("X-Cache", "MISS");
@@ -45,7 +47,11 @@ export async function onRequest(context) {
       context.waitUntil(cache.put(cacheKey, out.clone()));
       return out;
     }
-    return resp;
+    // Non-ok: echo upstream for debugging
+    const eh = new Headers(resp.headers);
+    eh.set("X-Upstream", upstream);
+    eh.set("X-Cache", "ERROR");
+    return new Response(resp.body, { status: resp.status, headers: eh });
   }
 
   // Non-GET: transparent pass-through (admin writes etc.)
