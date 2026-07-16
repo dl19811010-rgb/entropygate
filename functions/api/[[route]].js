@@ -48,7 +48,13 @@ export async function onRequest(context) {
       h.set("Cache-Control", "public, max-age=60");
       h.set("X-Cache", "MISS");
       const out = new Response(resp.body, { status: resp.status, headers: h });
-      context.waitUntil(cache.put(cacheKey, out.clone()));
+      // Await the write so the next request can read it back
+      try {
+        await cache.put(cacheKey, out.clone());
+        h.set("X-Put", "ok");
+      } catch (e) {
+        h.set("X-Put", "fail:" + e.message);
+      }
       return out;
     }
     // Non-ok: echo upstream for debugging
