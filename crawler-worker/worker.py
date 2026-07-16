@@ -107,11 +107,13 @@ def main() -> None:
         sources = json.load(f)
 
     seen = load_seen()
-    total_posted = 0
-    rows = []
+    planned = []          # articles to POST this run
+    stats = {}            # source_name -> counters
 
+    # ── Pass 1: fetch feeds + full text, decide what's new ────────────
     for src in sources:
         name = src.get("name", "?")
+        stats[name] = {"fetched": 0, "posted": 0, "skipped": 0, "err": ""}
         ptype = src.get("parser_type", "rss")
         use_pw = ptype in ("playwright", "playwright_html")
         try:
@@ -134,17 +136,16 @@ def main() -> None:
                 entries = feed_fetcher.fetch_playwright_links(src["list_url"]) or []
         except Exception as e:
             log.warning("[%s] fetch error: %s", name, e)
-            rows.append((name, 0, 0, 0, f"fetch_error: {e}"))
+            stats[name]["err"] = f"fetch_error: {e}"
             continue
 
-        posted = skipped = 0
-        errs = []
+        stats[name]["fetched"] = len(entries)
         for e in entries[:PER_SOURCE_CAP]:
             url = e.get("url")
             if not url:
                 continue
             if url in seen:
-                skipped += 1
+                stats[name]["skipped"] += 1
                 continue
             content = e.get("content") or ""
             # RSSHub feeds already carry the full body; the origin is
@@ -166,9 +167,10 @@ def main() -> None:
                             e["image_url"] = imgs[0]["url"]
                 except Exception as ex:
                     log.warning("[%s] full fetch failed %s: %s", name, url, ex)
-            payload = {
-                "title": (e.get("title") or "").strip(),
+            planned.append({
+                "name": name,
                 "url": url,
+                "title": (e.get("title") or "").strip(),
                 "content": content,
                 "summary": (e.get("summary") or "")[:500],
                 "source_name": name,
@@ -176,24 +178,50 @@ def main() -> None:
                 "image_url": e.get("image_url") or "",
                 "original_images": e.get("original_images") or [],
                 "published_at": iso(e.get("published_at")),
-            }
-            payload = {k: v for k, v in payload.items() if v is not None}
-            ok, err = post_article(tok, payload)
-            if ok:
-                posted += 1
-                total_posted += 1
-                seen.add(url)
-                if total_posted >= GLOBAL_CAP:
-                    break
-            else:
-                errs.append(f"{url}: {err}")
-                log.warning("[%s] post failed: %s", name, err)
-        rows.append((name, len(entries), posted, skipped, "; ".join(errs[:3])))
-        if total_posted >= GLOBAL_CAP:
+            })
+            if len(planned) >= GLOBAL_CAP:
+                break
+        if len(planned) >= GLOBAL_CAP:
             break
-
         # be a good citizen between sources
         time.sleep(1)
+
+    # ── Pass 2: upload cover images to the CDN repo (one batch) ──────
+    need = {p["url"]: p["image_url"] for p in planned if p.get("image_url")}
+    if need:
+        try:
+            from image_host import upload_images
+            hosted = upload_images(need)
+            for p in planned:
+                p["image_url"] = hosted.get(p["url"]) or p["image_url"]
+            log.info("images: %d hosted / %d requested", len(hosted), len(need))
+        except Exception as ex:
+            log.warning("image upload step failed (keeping original urls): %s", ex)
+
+    # ── Pass 3: POST to Studio ───────────────────────────────────────
+    total_posted = 0
+    for p in planned:
+        payload = {
+            "title": p["title"],
+            "url": p["url"],
+            "content": p["content"],
+            "summary": p["summary"],
+            "source_name": p["source_name"],
+            "language": p["language"],
+            "image_url": p["image_url"],
+            "original_images": p["original_images"],
+            "published_at": p["published_at"],
+        }
+        payload = {k: v for k, v in payload.items() if v is not None}
+        ok, err = post_article(tok, payload)
+        rec = stats[p["name"]]
+        if ok:
+            total_posted += 1
+            seen.add(p["url"])
+            rec["posted"] += 1
+        else:
+            rec["err"] = (rec["err"] + f"; post_fail: {err}").strip("; ")
+            log.warning("[%s] post failed: %s", p["name"], err)
 
     save_seen(seen)
     try:
@@ -201,10 +229,10 @@ def main() -> None:
     except Exception:
         pass
     log.info("==== RESULT SUMMARY ====")
-    for name, fetched, posted, skipped, err in rows:
+    for name, s in stats.items():
         log.info("RESULT source=%s fetched=%s posted=%s skipped=%s err=%s",
-                 name, fetched, posted, skipped, err or "-")
-    log.info("RESULT total_posted=%d seen=%d", total_posted, len(seen))
+                 name, s["fetched"], s["posted"], s["skipped"], s["err"] or "-")
+    log.info("RESULT total_posted=%d planned=%d seen=%d", total_posted, len(planned), len(seen))
     # Stay green; failures are captured in the logs above.
     sys.exit(0)
 

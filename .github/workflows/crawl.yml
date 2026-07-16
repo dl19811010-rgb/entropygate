@@ -37,19 +37,21 @@ jobs:
         env:
           STUDIO_BASE_URL: ${{ secrets.STUDIO_BASE_URL }}
           STUDIO_ADMIN_PASSWORD: ${{ secrets.STUDIO_ADMIN_PASSWORD }}
+          GITHUB_PAT: ${{ secrets.PAT }}
           PER_SOURCE_CAP: "10"
           GLOBAL_CAP: "40"
         run: |
           cd crawler-worker
           python worker.py
 
-      - name: Commit seen_urls back
+      - name: Commit seen_urls + image map back
         if: always()
         run: |
           git config user.name "crawler-worker[bot]"
           git config user.email "bot@entropygate.cc"
           git remote set-url origin "https://${{ secrets.PAT }}@github.com/${{ github.repository }}.git"
           git add crawler-worker/seen_urls.json
-          git diff --cached --quiet || git commit -m "chore: update crawler seen_urls [skip ci]"
+          [ -f crawler-worker/image_map.json ] && git add crawler-worker/image_map.json
+          git diff --cached --quiet || git commit -m "chore: update crawler state [skip ci]"
           git push
         continue-on-error: true
