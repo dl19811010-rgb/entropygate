@@ -1,5 +1,0 @@
-feedparser
-httpx
-beautifulsoup4
-lxml
-playwright

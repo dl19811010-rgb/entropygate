@@ -1,3 +1,0 @@
-export function isMockEnabled() {
-  return import.meta.env.DEV && import.meta.env.VITE_ENABLE_MOCK !== 'false'
-}

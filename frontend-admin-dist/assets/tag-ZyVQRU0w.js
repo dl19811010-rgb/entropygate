@@ -1,1 +1,0 @@
-import{aq as a}from"./index-CRYXIsvh.js";function n(t){return a.get("/tags",{params:t})}function r(){return a.get("/tags/all")}function s(t){return a.post("/tags",t)}function u(t,e){return a.put(`/tags/${t}`,e)}function o(t){return a.delete(`/tags/${t}`)}export{n as a,s as c,o as d,r as g,u};
