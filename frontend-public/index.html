@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>EntropyGate AI · 智能情报</title>
+  <link rel="stylesheet" href="/assets/style.css" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="header-inner">
+      <a class="logo" href="/"><span class="dot"></span> EntropyGate AI</a>
+      <form class="search-form">
+        <input type="text" name="q" placeholder="搜索新闻、公司、技术…" />
+        <button type="submit">搜索</button>
+      </form>
+    </div>
+  </header>
+
+  <main class="container">
+    <h1 class="page-title">今日情报</h1>
+    <p class="page-sub">AI 与前沿科技的实时观察 —— 由 EntropyGate 编辑智能筛选</p>
+
+    <section id="featured" class="featured" style="display:none"></section>
+
+    <div id="chips" class="chips"></div>
+
+    <div id="feed" class="feed"><div class="empty">加载中…</div></div>
+
+    <div class="pagination">
+      <button id="prev" disabled>← 上一页</button>
+      <button id="next" disabled>下一页 →</button>
+    </div>
+  </main>
+
+  <script src="/config.js"></script>
+  <script src="/assets/app.js"></script>
+  <script>
+    bindSearch();
+    const feed = document.getElementById("feed");
+    const featured = document.getElementById("featured");
+    const chips = document.getElementById("chips");
+    const prevBtn = document.getElementById("prev");
+    const nextBtn = document.getElementById("next");
+
+    const PAGE_SIZE = 20;
+    const state = { page: 1, bucket: "" };
+
+    function load() {
+      feed.innerHTML = `<div class="empty">加载中…</div>`;
+      prevBtn.disabled = true; nextBtn.disabled = true;
+      const qs = `/homepage/stories?page=${state.page}&page_size=${PAGE_SIZE}` +
+        (state.bucket ? `&bucket=${encodeURIComponent(state.bucket)}` : "");
+      apiGet(qs).then((data) => {
+        renderFeed(feed, data.items || [], "");
+        const totalPages = data.total_pages || 1;
+        prevBtn.disabled = state.page <= 1;
+        nextBtn.disabled = state.page >= totalPages;
+      }).catch((e) => showError(feed, e.message));
+    }
+
+    function pickBucket(key) {
+      state.bucket = key;
+      state.page = 1;
+      renderChips(chips, state.bucket, pickBucket);
+      load();
+      window.scrollTo(0, 0);
+    }
+
+    renderChips(chips, state.bucket, pickBucket);
+    loadFeatured(featured);
+    load();
+
+    prevBtn.addEventListener("click", () => { if (state.page > 1) { state.page--; load(); window.scrollTo(0,0); } });
+    nextBtn.addEventListener("click", () => { state.page++; load(); window.scrollTo(0,0); });
+  </script>
+</body>
+</html>

@@ -1,0 +1,1 @@
+import{aq as t}from"./index-CRYXIsvh.js";function r(o){return t.get("/tools",{params:o})}function s(o){return t.get(`/tools/${o}`)}function u(o){return t.post("/tools",o)}function l(o,e){return t.put(`/tools/${o}`,e)}function a(o){return t.delete(`/tools/${o}`)}export{s as a,u as c,a as d,r as g,l as u};
