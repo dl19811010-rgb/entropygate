@@ -16,7 +16,11 @@ export async function onRequest(context) {
   const url = new URL(request.url);
 
   // Rebuild upstream URL: /api/<route> -> ORIGIN/<route>
-  const route = params.route || "";
+  // NOTE: [[route]] (optional catch-all) yields an ARRAY of path segments,
+  // so join with "/" to reconstruct the path.
+  const route = Array.isArray(params.route)
+    ? params.route.join("/")
+    : (params.route || "");
   const upstream = `${ORIGIN}/${route}${url.search}`;
 
   // Only cache safe, idempotent GET requests
