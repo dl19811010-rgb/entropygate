@@ -9,7 +9,7 @@
 <body>
   <header class="site-header">
     <div class="header-inner">
-      <a class="logo" href="/"><span class="dot"></span> EntropyGate AI</a>
+      <a class="logo" href="/"><span class="dot"></span> EntropyGate AI <span class="sub">智能情报</span></a>
       <form class="search-form">
         <input type="text" name="q" placeholder="搜索新闻、公司、技术…" />
         <button type="submit">搜索</button>
@@ -18,61 +18,28 @@
   </header>
 
   <main class="container">
-    <h1 class="page-title">搜索结果</h1>
-    <p class="page-sub" id="sub">—</p>
+    <div class="page-head">
+      <h1 class="page-title">搜索结果</h1>
+      <p class="page-sub" id="sub">—</p>
+    </div>
+
     <div id="feed" class="feed"><div class="empty">加载中…</div></div>
+
     <div class="pagination">
       <button id="prev" disabled>← 上一页</button>
+      <span id="page-no" class="pageno"></span>
       <button id="next" disabled>下一页 →</button>
     </div>
   </main>
 
+  <footer class="site-footer">
+    <div class="footer-inner">
+      <div class="f-logo"><span class="dot"></span> EntropyGate AI</div>
+      <div class="f-note">由编辑智能策展 · 数据来自公开来源</div>
+    </div>
+  </footer>
+
   <script src="/config.js"></script>
   <script src="/assets/app.js"></script>
-  <script>
-    bindSearch();
-    const feed = document.getElementById("feed");
-    const sub = document.getElementById("sub");
-    const prevBtn = document.getElementById("prev");
-    const nextBtn = document.getElementById("next");
-    const q = (getParam("q") || "").trim();
-    document.querySelector('.search-form input').value = q;
-
-    const PAGE_SIZE = 20;
-    let page = 1;
-
-    function load() {
-      feed.innerHTML = `<div class="empty">加载中…</div>`;
-      prevBtn.disabled = true; nextBtn.disabled = true;
-      if (!q) { feed.innerHTML = `<div class="empty-guide">
-        <div class="eg-icon">🔍</div>
-        <h3>请输入搜索关键词</h3>
-        <p>在上方搜索框中输入公司、技术或话题，即可检索 AI 资讯库。</p>
-        <a class="btn" href="/">返回首页</a>
-      </div>`; return; }
-      apiGet(`/search?q=${encodeURIComponent(q)}&page=${page}&page_size=${PAGE_SIZE}`).then((data) => {
-        const items = data.items || [];
-        const total = data.total || 0;
-        sub.textContent = `“${q}” — 共 ${total} 条结果`;
-        if (!items.length) {
-          feed.innerHTML = `<div class="empty-guide">
-            <div class="eg-icon">🔍</div>
-            <h3>没有找到与“${esc(q)}”相关的内容</h3>
-            <p>换个关键词试试，或浏览<a href="/" style="color:var(--brand)">今日情报首页</a>。也可以检查拼写，或查看其它栏目。</p>
-            <a class="btn" href="/">浏览首页</a>
-          </div>`;
-          return;
-        }
-        renderFeed(feed, items, q);
-        const totalPages = data.total_pages || 1;
-        prevBtn.disabled = page <= 1;
-        nextBtn.disabled = page >= totalPages;
-      }).catch((e) => showError(feed, e.message));
-    }
-
-    prevBtn.addEventListener("click", () => { if (page > 1) { page--; load(); window.scrollTo(0,0); } });
-    nextBtn.addEventListener("click", () => { page++; load(); window.scrollTo(0,0); });
-    load();
-  </script>
 </body>
 </html>

@@ -9,7 +9,7 @@
 <body>
   <header class="site-header">
     <div class="header-inner">
-      <a class="logo" href="/"><span class="dot"></span> EntropyGate AI</a>
+      <a class="logo" href="/"><span class="dot"></span> EntropyGate AI <span class="sub">智能情报</span></a>
       <form class="search-form">
         <input type="text" name="q" placeholder="搜索新闻、公司、技术…" />
         <button type="submit">搜索</button>
@@ -21,47 +21,14 @@
     <div id="content"><div class="empty">加载中…</div></div>
   </main>
 
+  <footer class="site-footer">
+    <div class="footer-inner">
+      <div class="f-logo"><span class="dot"></span> EntropyGate AI</div>
+      <div class="f-note">由编辑智能策展 · 数据来自公开来源</div>
+    </div>
+  </footer>
+
   <script src="/config.js"></script>
   <script src="/assets/app.js"></script>
-  <script>
-    bindSearch();
-    const content = document.getElementById("content");
-    const id = getParam("id");
-
-    (async () => {
-      if (!id) { content.innerHTML = `<div class="error">缺少文章 ID</div>`; return; }
-      try {
-        const a = await apiGet(`/articles/${id}`);
-        const src = (a.source && a.source.name) ? a.source.name : (a.source_name || "未知来源");
-        const badges = [];
-        if (a.is_breaking) badges.push('<span class="badge breaking">突发</span>');
-        if (a.is_featured) badges.push('<span class="badge featured">精选</span>');
-        const tags = (a.tags || []).map(t => `<span class="tag">${esc(t.name || t)}</span>`).join(" ");
-        const hero = a.image_url ? `<img class="hero" src="${esc(a.image_url)}" alt="" />` : "";
-        const aiSum = a.ai_summary ? `<div class="ai-summary"><strong>AI 摘要：</strong>${esc(a.ai_summary)}</div>` : "";
-        const body = a.content || a.summary || "（无正文）";
-        const orig = a.url ? `<p style="margin-top:24px"><a href="${esc(a.url)}" target="_blank" rel="noopener">查看原文 ↗</a></p>` : "";
-
-        document.title = `${esc(a.title)} · EntropyGate AI`;
-        content.innerHTML = `
-          <a class="back" href="/">← 返回首页</a>
-          <article class="article">
-            ${hero}
-            <h1>${esc(a.title)}</h1>
-            <div class="meta">
-              <span>${esc(src)}</span><span>·</span>
-              <span>${esc(fmtDate(a.published_at || a.created_at))}</span>
-              ${badges.join(" ")}
-            </div>
-            ${aiSum}
-            <div class="body">${esc(body)}</div>
-            ${tags ? `<div class="tags" style="margin-top:20px">${tags}</div>` : ""}
-            ${orig}
-          </article>`;
-      } catch (e) {
-        content.innerHTML = `<div class="error">加载失败：${esc(e.message)}</div>`;
-      }
-    })();
-  </script>
 </body>
 </html>
