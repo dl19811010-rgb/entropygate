@@ -186,7 +186,10 @@ def main() -> None:
         # be a good citizen between sources
         time.sleep(1)
 
-    # ── Pass 2: upload cover images to the CDN repo (one batch) ──────
+    # ── Pass 2: resolve cover images (original URL first, R2 fallback) ──
+    # image_host keeps the original article image URL whenever it is reachable
+    # (zero R2 storage), and only uploads to R2 when the original is dead.
+    # If R2 creds / R2_PUBLIC_BASE are not set, it degrades to keeping originals.
     need = {p["url"]: p["image_url"] for p in planned if p.get("image_url")}
     if need:
         try:
@@ -194,9 +197,11 @@ def main() -> None:
             hosted = upload_images(need)
             for p in planned:
                 p["image_url"] = hosted.get(p["url"]) or p["image_url"]
-            log.info("images: %d hosted / %d requested", len(hosted), len(need))
+            r2 = sum(1 for v in hosted.values()
+                     if v and (".r2.dev" in v or ".r2.cloudflarestorage.com" in v))
+            log.info("images: %d on R2 / %d total resolved", r2, len(hosted))
         except Exception as ex:
-            log.warning("image upload step failed (keeping original urls): %s", ex)
+            log.warning("image step failed (keeping original urls): %s", ex)
 
     # ── Pass 3: POST to Studio ───────────────────────────────────────
     total_posted = 0

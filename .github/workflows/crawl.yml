@@ -37,7 +37,13 @@ jobs:
         env:
           STUDIO_BASE_URL: ${{ secrets.STUDIO_BASE_URL }}
           STUDIO_ADMIN_PASSWORD: ${{ secrets.STUDIO_ADMIN_PASSWORD }}
-          GITHUB_PAT: ${{ secrets.PAT }}
+          GITHUB_PAT: ${{ secrets.PAT }}        # only for committing seen_urls / image_map
+          # R2 image fallback (set R2_PUBLIC_BASE after enabling bucket public access)
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          R2_PUBLIC_BASE: ${{ secrets.R2_PUBLIC_BASE }}
           PER_SOURCE_CAP: "10"
           GLOBAL_CAP: "40"
         run: |

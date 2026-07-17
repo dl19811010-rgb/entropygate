@@ -1,0 +1,40 @@
+name: R2 Orphan Cleanup
+
+on:
+  schedule:
+    - cron: "17 3 * * 1"          # weekly, Monday 03:17 UTC
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install httpx
+        run: pip install httpx
+
+      - name: Run cleanup
+        env:
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          R2_PUBLIC_BASE: ${{ secrets.R2_PUBLIC_BASE }}
+          STUDIO_BASE_URL: ${{ secrets.STUDIO_BASE_URL }}
+          STUDIO_ADMIN_PASSWORD: ${{ secrets.STUDIO_ADMIN_PASSWORD }}
+          # set CLEANUP_DRYRUN=1 in a manual run to only report, not delete
+          CLEANUP_DRYRUN: ${{ vars.CLEANUP_DRYRUN || '0' }}
+        run: |
+          cd crawler-worker
+          python cleanup_r2.py

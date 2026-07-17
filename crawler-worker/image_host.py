@@ -1,20 +1,29 @@
 #!/usr/bin/env python3
-"""Image host backed by a Cloudflare Pages + GitHub repo (free, no card).
+"""Image host backed by Cloudflare R2 (S3-compatible).
 
-Pipeline (per crawler run):
-  1. Download each new article's cover image on the GitHub Actions runner
-     (US egress can reach origins the China Studio cannot).
-  2. Push ALL new images to the `entropygate-images` repo in ONE Git commit
-     via the Git Data API (blob -> tree -> commit -> ref update). This triggers
-     exactly one Cloudflare Pages build instead of one per image.
-  3. Return the CDN URL `https://images.aientropygate.com/<path>` for each
-     article so the worker can store it as `image_url`.
+Free tier: 10 GB storage + 10M Class-A ops + 1M Class-B ops + $0 egress / month.
+The only hard cap is 10 GB STORED at any moment.
 
-Dedup: a committed `image_map.json` ({article_url: pages_url}) means we never
-re-download or re-upload an image we already hosted, and re-runs reuse the URL.
+Cost-optimized, original-image-first strategy
+---------------------------------------------
+  * The crawler keeps the ORIGINAL article image URL as the primary
+    `image_url` whenever that URL is reachable and serves a real image.
+    This costs ZERO R2 storage and the lowest copyright exposure.
+  * R2 is used ONLY as a fallback: when the original URL is dead / blocked
+    at crawl time, we download it once and store it in R2, then point
+    `image_url` at the R2 public URL.
+  * Upload uses AWS SigV4 over the S3 API implemented with the stdlib only
+    (no boto3 dependency, so it runs on the GitHub Actions runner as-is).
 
-The mapping is idempotent: each article gets a deterministic filename derived
-from its URL hash, so re-pushing overwrites the same object (safe).
+Public URL shape:  R2_PUBLIC_BASE + "/" + key
+  e.g. https://pub-<hash>.r2.dev/img/2026/07/ab12cd34.jpg
+R2_PUBLIC_BASE must be set AFTER enabling bucket public access in the
+Cloudflare dashboard (R2 -> bucket -> Settings -> Public access -> toggle on).
+If R2 creds / R2_PUBLIC_BASE are missing, upload_images() degrades gracefully
+and simply returns the original URLs (the article still gets its image).
+
+Dedup: a committed image_map.json ({article_url: final_url}) means we never
+re-probe or re-upload an article we already resolved; re-runs reuse the URL.
 """
 import os
 import io
@@ -22,6 +31,7 @@ import json
 import time
 import logging
 import hashlib
+import hmac
 from datetime import datetime, timezone
 from urllib.parse import urlparse
 
@@ -31,14 +41,17 @@ log = logging.getLogger("image-host")
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 
-IMG_REPO = os.environ.get("IMG_REPO", "dl19811010-rgb/entropygate-images")
-IMG_BRANCH = os.environ.get("IMG_BRANCH", "main")
-IMG_BASE = os.environ.get("IMG_BASE", "https://images.aientropygate.com").rstrip("/")
-GITHUB_API = "https://api.github.com"
+# ── R2 config (all required for R2 to be active) ──────────────────────────────
+R2_ACCOUNT_ID = os.environ.get("R2_ACCOUNT_ID", "").strip()
+R2_ACCESS_KEY_ID = os.environ.get("R2_ACCESS_KEY_ID", "").strip()
+R2_SECRET_ACCESS_KEY = os.environ.get("R2_SECRET_ACCESS_KEY", "").strip()
+R2_BUCKET = os.environ.get("R2_BUCKET", "entropygate-images").strip()
+R2_PUBLIC_BASE = os.environ.get("R2_PUBLIC_BASE", "").strip().rstrip("/")
 
-# Skip absurdly large files; keeps Pages builds fast and within limits.
+# ── tuning ────────────────────────────────────────────────────────────────────
 MAX_BYTES = int(os.environ.get("IMG_MAX_BYTES", str(8 * 1024 * 1024)))
 DOWNLOAD_TIMEOUT = int(os.environ.get("IMG_DL_TIMEOUT", "30"))
+PROBE_TIMEOUT = int(os.environ.get("IMG_PROBE_TIMEOUT", "10"))
 MAP_FILE = os.path.join(HERE, "image_map.json")
 
 _USER_AGENT = (
@@ -47,18 +60,12 @@ _USER_AGENT = (
 )
 
 
-def _gh_headers() -> dict:
-    tok = os.environ.get("GITHUB_PAT", "")
-    h = {
-        "Accept": "application/vnd.github+json",
-        "User-Agent": "entropygate-crawler",
-        "X-GitHub-Api-Version": "2022-11-28",
-    }
-    if tok:
-        h["Authorization"] = f"Bearer {tok}"
-    return h
+def r2_enabled() -> bool:
+    return bool(R2_ACCOUNT_ID and R2_ACCESS_KEY_ID and R2_SECRET_ACCESS_KEY
+                and R2_BUCKET and R2_PUBLIC_BASE)
 
 
+# ── dedup map ─────────────────────────────────────────────────────────────────
 def load_map() -> dict:
     try:
         with open(MAP_FILE, encoding="utf-8") as f:
@@ -74,10 +81,9 @@ def save_map(m: dict) -> None:
     os.replace(tmp, MAP_FILE)
 
 
+# ── helpers ───────────────────────────────────────────────────────────────────
 def _ext(url: str, content_type: str) -> str:
-    """Pick a file extension from the URL path and/or Content-Type."""
     path = urlparse(url).path.lower()
-    # strip query/fragment already gone in path
     if "." in path.rsplit("/", 1)[-1]:
         ext = "." + path.rsplit(".", 1)[-1].split("?")[0][:5]
         if 2 <= len(ext) <= 5 and ext[1:].isalnum():
@@ -98,8 +104,39 @@ def _ext(url: str, content_type: str) -> str:
     return ".jpg"
 
 
+_EXT_CT = {
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".png": "image/png",
+    ".webp": "image/webp",
+    ".gif": "image/gif",
+    ".svg": "image/svg+xml",
+    ".avif": "image/avif",
+}
+
+
+def _ct_for_ext(ext: str) -> str:
+    return _EXT_CT.get(ext, "application/octet-stream")
+
+
+def _looks_like_image(head: bytes) -> bool:
+    if not head:
+        return False
+    if head[:3] == b"\xff\xd8\xff":                      # JPEG
+        return True
+    if head[:8] == b"\x89PNG\r\n\x1a\n":                 # PNG
+        return True
+    if head[:6] in (b"GIF87a", b"GIF89a"):               # GIF
+        return True
+    if head[:4] == b"RIFF" and head[8:12] == b"WEBP":    # WEBP
+        return True
+    if head[:5].lstrip().startswith(b"<"):               # SVG / HTML fallback
+        return True
+    return False
+
+
 def _rel_path(article_url: str, ext: str) -> str:
-    """Deterministic, sharded path so re-runs are idempotent."""
+    """Deterministic, sharded path so re-runs are idempotent (overwrite same key)."""
     h = hashlib.sha1(article_url.encode("utf-8")).hexdigest()[:16]
     d = datetime.now(timezone.utc)
     return f"img/{d.year}/{d.month:02d}/{h}{ext}"
@@ -121,19 +158,9 @@ def download(url: str) -> tuple:
         if not data or len(data) > MAX_BYTES:
             log.warning("img skip size=%d: %s", len(data), url)
             return None, None
-        # crude magic-byte check so we don't host HTML error pages
-        head = data[:8]
-        if not (
-            head[:3] == b"\xff\xd8\xff"            # JPEG
-            or head[:8] == b"\x89PNG\r\n\x1a\n"     # PNG
-            or head[:6] in (b"GIF87a", b"GIF89a")   # GIF
-            or head[:4] == b"RIFF"                  # WEBP (RIFF....WEBP)
-            or head[:5] == b"%PDF-"                 # (ignore pdf)
-        ):
-            # allow webp (RIFF....WEBP) and svg
-            if not (head[:4] == b"RIFF" and data[8:12] == b"WEBP") and not data[:5].lstrip().startswith(b"<"):
-                log.warning("img not an image (magic=%r): %s", head, url)
-                return None, None
+        if not _looks_like_image(data[:16]):
+            log.warning("img not an image (magic=%r): %s", data[:8], url)
+            return None, None
         ext = _ext(url, r.headers.get("content-type", ""))
         return data, ext
     except Exception as e:
@@ -141,126 +168,147 @@ def download(url: str) -> tuple:
         return None, None
 
 
-# ── GitHub Git Data API helpers ──────────────────────────────────────────────
-def _api_get(path: str) -> dict:
-    r = httpx.get(f"{GITHUB_API}{path}", headers=_gh_headers(), timeout=30)
-    r.raise_for_status()
-    return r.json()
+def probe_image(url: str) -> bool:
+    """True => original URL is usable, keep it (no R2 storage needed)."""
+    try:
+        with httpx.Client(
+            timeout=PROBE_TIMEOUT,
+            follow_redirects=True,
+            headers={"User-Agent": _USER_AGENT, "Accept": "image/*,*/*;q=0.8"},
+        ) as c:
+            r = c.get(url)
+        if r.status_code != 200:
+            return False
+        ct = r.headers.get("content-type", "").lower()
+        if ct.startswith("image/"):
+            return True
+        return _looks_like_image(r.content[:16])
+    except Exception:
+        return False
 
 
-def _api_post(path: str, json_body: dict) -> dict:
-    r = httpx.post(f"{GITHUB_API}{path}", headers=_gh_headers(), json=json_body, timeout=30)
-    r.raise_for_status()
-    return r.json()
+# ── AWS SigV4 (stdlib only) for R2 S3 PUT ─────────────────────────────────────
+def _hmac(key: bytes, msg: str) -> bytes:
+    return hmac.new(key, msg.encode("utf-8"), hashlib.sha256).digest()
 
 
-def _api_patch(path: str, json_body: dict) -> dict:
-    r = httpx.patch(f"{GITHUB_API}{path}", headers=_gh_headers(), json=json_body, timeout=30)
-    r.raise_for_status()
-    return r.json()
+def _sig_key(key: str, datestamp: str, region: str, service: str) -> bytes:
+    k = _hmac(("AWS4" + key).encode("utf-8"), datestamp)
+    k = _hmac(k, region)
+    k = _hmac(k, service)
+    k = _hmac(k, "aws4_request")
+    return k
 
 
-def _resolve_base() -> tuple:
-    """Return (commit_sha, tree_sha) for IMG_BRANCH head."""
-    ref = _api_get(f"/repos/{IMG_REPO}/git/refs/heads/{IMG_BRANCH}")
-    commit_sha = ref["object"]["sha"]
-    commit = _api_get(f"/repos/{IMG_REPO}/git/commits/{commit_sha}")
-    return commit_sha, commit["tree"]["sha"]
+def _s3_put(key: str, data: bytes, content_type: str):
+    """PUT object to R2. Returns (status_code, body_text)."""
+    import http.client
+    host = f"{R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
+    path = f"/{R2_BUCKET}/{key}"
+    amz = datetime.now(timezone.utc)
+    amzdate = amz.strftime("%Y%m%dT%H%M%SZ")
+    datestamp = amzdate[:8]
+    region, service = "auto", "s3"
+    payload_hash = hashlib.sha256(data).hexdigest()
+
+    signed_headers = "host;x-amz-content-sha256;x-amz-date"
+    canonical = "\n".join([
+        "PUT", path, "",
+        f"host:{host}",
+        f"x-amz-content-sha256:{payload_hash}",
+        f"x-amz-date:{amzdate}",
+        "", signed_headers, payload_hash,
+    ])
+    scope = f"{datestamp}/{region}/{service}/aws4_request"
+    string_to_sign = "\n".join([
+        "AWS4-HMAC-SHA256", amzdate, scope,
+        hashlib.sha256(canonical.encode("utf-8")).hexdigest(),
+    ])
+    signing_key = _sig_key(R2_SECRET_ACCESS_KEY, datestamp, region, service)
+    signature = hmac.new(signing_key, string_to_sign.encode("utf-8"),
+                         hashlib.sha256).hexdigest()
+    auth = (f"AWS4-HMAC-SHA256 Credential={R2_ACCESS_KEY_ID}/{scope}, "
+            f"SignedHeaders={signed_headers}, Signature={signature}")
+
+    headers = {
+        "Host": host,
+        "X-Amz-Date": amzdate,
+        "X-Amz-Content-Sha256": payload_hash,
+        "Content-Type": content_type,
+        "Authorization": auth,
+    }
+    conn = http.client.HTTPSConnection(host, 443, timeout=30)
+    try:
+        conn.request("PUT", path, body=data, headers=headers)
+        resp = conn.getresponse()
+        body = resp.read().decode("utf-8", "replace")
+        return resp.status, body
+    finally:
+        conn.close()
 
 
-def _push_batch(items: list) -> dict:
-    """items: list of (rel_path, bytes). Returns {rel_path: cdn_url}."""
-    if not items:
-        return {}
-    commit_sha, base_tree = _resolve_base()
-    entries = []
-    for rel_path, data in items:
-        blob = _api_post(
-            f"/repos/{IMG_REPO}/git/blobs",
-            {"content": base64_encode(data), "encoding": "base64"},
-        )
-        entries.append(
-            {"path": rel_path, "mode": "100644", "type": "blob", "sha": blob["sha"]}
-        )
-    tree = _api_post(
-        f"/repos/{IMG_REPO}/git/trees",
-        {"base_tree": base_tree, "tree": entries},
-    )
-    new_commit = _api_post(
-        f"/repos/{IMG_REPO}/git/commits",
-        {
-            "message": f"chore: host {len(items)} cover image(s) via crawler",
-            "tree": tree["sha"],
-            "parents": [commit_sha],
-        },
-    )
-    _api_patch(
-        f"/repos/{IMG_REPO}/git/refs/heads/{IMG_BRANCH}",
-        {"sha": new_commit["sha"]},
-    )
-    return {p: f"{IMG_BASE}/{p}" for p, _ in items}
+def upload_object(key: str, data: bytes, content_type: str) -> bool:
+    st, body = _s3_put(key, data, content_type)
+    if 200 <= st < 300:
+        return True
+    log.warning("R2 PUT %s -> HTTP %s: %s", key, st, body[:160])
+    return False
 
 
-def base64_encode(data: bytes) -> str:
-    import base64
-    return base64.b64encode(data).decode("ascii")
-
-
+# ── public API ────────────────────────────────────────────────────────────────
 def upload_images(need: dict) -> dict:
-    """need: {article_url: original_image_url}. Returns {article_url: cdn_url}.
+    """need: {article_url: original_image_url}. Returns {article_url: final_url}.
 
-    Reuses any previously hosted URL from the committed map; downloads and
-    uploads only the new ones (batched into a single commit).
+    Resolution order per article:
+      * already resolved before  -> reuse (dedup map)
+      * R2 not configured         -> keep original URL (graceful)
+      * original URL reachable    -> keep original URL (zero R2 storage)
+      * original dead             -> download + store in R2 (fallback)
+      * download also fails       -> keep original URL as last resort
     """
     have = load_map()
     out: dict = {}
-    to_fetch: dict = {}  # article_url -> original_image_url (not yet hosted)
-    for article_url, orig in need.items():
-        if not orig or not str(orig).startswith("http"):
-            continue
-        if article_url in have:
-            out[article_url] = have[article_url]
-        else:
-            to_fetch[article_url] = orig
 
-    if not to_fetch:
+    if not r2_enabled():
+        for a, orig in need.items():
+            out[a] = have.get(a, orig)
+        log.info("img: R2 not configured -> keeping %d original url(s)", len(out))
         return out
 
-    batch = []  # (rel_path, bytes, article_url)
-    for article_url, orig in to_fetch.items():
-        data, ext = download(orig)
-        if data is None:
+    to_resolve: dict = {}
+    for a, orig in need.items():
+        if not orig or not str(orig).startswith("http"):
+            out[a] = orig
             continue
-        rel = _rel_path(article_url, ext)
-        batch.append((rel, data, article_url))
+        if a in have:
+            out[a] = have[a]
+        else:
+            to_resolve[a] = orig
 
-    if batch:
-        try:
-            paths = _push_batch([(p, d) for p, d, _ in batch])
-            for rel, _d, article_url in batch:
-                if rel in paths:
-                    out[article_url] = paths[rel]
-                    have[article_url] = paths[rel]
-            save_map(have)
-            log.info("img hosted %d new / %d requested", len(paths), len(batch))
-        except Exception as e:
-            log.warning("img batch push failed: %s", e)
-            # fall back: keep original URLs so the article still has an image
-            for _rel, _d, article_url in batch:
-                if article_url not in out:
-                    out[article_url] = to_fetch[article_url]
+    r2_hosted = 0
+    for a, orig in to_resolve.items():
+        if probe_image(orig):
+            final = orig                      # original usable -> no R2 storage
+        else:
+            data, ext = download(orig)
+            if data is None:
+                final = orig                  # can't rehost; keep original
+            else:
+                key = _rel_path(a, ext)
+                if upload_object(key, data, _ct_for_ext(ext)):
+                    final = f"{R2_PUBLIC_BASE}/{key}"
+                    r2_hosted += 1
+                else:
+                    final = orig
+        out[a] = final
+        have[a] = final
 
+    if to_resolve:
+        save_map(have)
+    log.info("img: %d newly hosted on R2 / %d resolved this run", r2_hosted, len(to_resolve))
     return out
 
 
 if __name__ == "__main__":
-    # smoke test: host a tiny PNG
     logging.basicConfig(level=logging.INFO)
-    png = (
-        b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01"
-        b"\x08\x06\x00\x00\x00\x1f\x15\xc4\x89\x00\x00\x00\rIDATx\x9cc\xf8\xcf"
-        b"\xc0\xf0\x1f\x00\x05\x05\x02\x00\x9d\xc5\xd7\xd3\x00\x00\x00\x00IEND"
-        b"\xaeB`\x82"
-    )
-    res = upload_images({"https://example.com/smoke": "data-bin"})
-    print("result:", res)
+    print("r2_enabled:", r2_enabled())
