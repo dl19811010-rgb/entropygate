@@ -47,6 +47,9 @@ R2_ACCESS_KEY_ID = os.environ.get("R2_ACCESS_KEY_ID", "").strip()
 R2_SECRET_ACCESS_KEY = os.environ.get("R2_SECRET_ACCESS_KEY", "").strip()
 R2_BUCKET = os.environ.get("R2_BUCKET", "entropygate-images").strip()
 R2_PUBLIC_BASE = os.environ.get("R2_PUBLIC_BASE", "").strip().rstrip("/")
+# Test-only: when set to 1/true/yes, force every image into R2 regardless of
+# original reachability. Default off — never affects production behaviour.
+R2_FORCE_UPLOAD = os.environ.get("R2_FORCE_UPLOAD", "").strip().lower() in ("1", "true", "yes")
 
 # ── tuning ────────────────────────────────────────────────────────────────────
 MAX_BYTES = int(os.environ.get("IMG_MAX_BYTES", str(8 * 1024 * 1024)))
@@ -287,8 +290,8 @@ def upload_images(need: dict) -> dict:
 
     r2_hosted = 0
     for a, orig in to_resolve.items():
-        if probe_image(orig):
-            final = orig                      # original usable -> no R2 storage
+        if R2_FORCE_UPLOAD or probe_image(orig):
+            final = orig                      # original usable (or force mode) -> no R2 storage
         else:
             data, ext = download(orig)
             if data is None:
@@ -305,7 +308,8 @@ def upload_images(need: dict) -> dict:
 
     if to_resolve:
         save_map(have)
-    log.info("img: %d newly hosted on R2 / %d resolved this run", r2_hosted, len(to_resolve))
+    log.info("img: %d newly hosted on R2 (force=%s) / %d resolved this run",
+             r2_hosted, R2_FORCE_UPLOAD, len(to_resolve))
     return out
 
 
