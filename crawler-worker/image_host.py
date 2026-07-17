@@ -313,6 +313,21 @@ def upload_images(need: dict) -> dict:
     return out
 
 
+def selftest() -> str:
+    """Upload a tiny embedded PNG to prove the R2 chain end-to-end
+    (creds + bucket write + public base). Returns the public URL or an
+    error token. Used only by the gated workflow self-test step."""
+    if not r2_enabled():
+        return "R2_DISABLED"
+    import base64
+    png = base64.b64decode(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR4nGNgYGAAAAAEAAEnNCcKAAAAAElFTkSuQmCC")
+    key = f"img/_selftest/{int(time.time())}.png"
+    if upload_object(key, png, "image/png"):
+        return f"{R2_PUBLIC_BASE}/{key}"
+    return "UPLOAD_FAILED"
+
+
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     print("r2_enabled:", r2_enabled())
