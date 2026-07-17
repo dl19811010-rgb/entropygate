@@ -154,9 +154,16 @@ async function loadFeatured(el) {
       apiGet("/homepage/featured?fields=light"),
       apiGet("/homepage/breaking?fields=light"),
     ]);
-    const f = Array.isArray(featured) ? featured : (featured.items || []);
-    const b = Array.isArray(breaking) ? breaking : (breaking.items || []);
-    if (!f.length && !b.length) { el.style.display = "none"; return; }
+    let f = Array.isArray(featured) ? featured : (featured.items || []);
+    let b = Array.isArray(breaking) ? breaking : (breaking.items || []);
+    if (!f.length && !b.length) {
+      // Fallback: top stories by editorial score so the hero is never empty
+      const data = await apiGet("/homepage/stories?page=1&page_size=5&fields=light");
+      const items = data.items || [];
+      if (!items.length) { el.style.display = "none"; return; }
+      f = items.slice(0, 1);
+      b = items.slice(1, 5);
+    }
     const lead = f[0];
     const side = (b.length ? b : f.slice(1)).slice(0, 4);
     el.innerHTML = (lead ? heroHtml(lead) : "") +
