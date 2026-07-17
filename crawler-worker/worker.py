@@ -200,6 +200,10 @@ def main() -> None:
             r2 = sum(1 for v in hosted.values()
                      if v and (".r2.dev" in v or ".r2.cloudflarestorage.com" in v))
             log.info("images: %d on R2 / %d total resolved", r2, len(hosted))
+            for v in hosted.values():
+                if v and (".r2.dev" in v or ".r2.cloudflarestorage.com" in v):
+                    log.info("R2_SAMPLE_URL %s", v)   # verification aid (force run)
+                    break
         except Exception as ex:
             log.warning("image step failed (keeping original urls): %s", ex)
 
