@@ -14,8 +14,7 @@ import os
 import json
 import time
 import logging
-import urllib.request
-import urllib.error
+import httpx
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("backfill")
@@ -33,19 +32,19 @@ def api(method, path, token=None, body=None, retry=6):
     headers = {"Accept": "application/json", "Content-Type": "application/json"}
     if token:
         headers["X-Access-Token"] = token
-    data = json.dumps(body).encode() if body is not None else None
     for attempt in range(retry + 1):
-        req = urllib.request.Request(url, data=data, headers=headers, method=method)
         try:
-            with urllib.request.urlopen(req, timeout=30) as r:
-                return r.status, json.loads(r.read().decode())
-        except urllib.error.HTTPError as e:
-            if e.code == 429 and attempt < retry:
-                w = int(e.headers.get("Retry-After", 2 ** attempt))
+            r = httpx.request(method, url, headers=headers, json=body, timeout=30)
+            if r.status_code == 429 and attempt < retry:
+                w = int(r.headers.get("retry-after", 2 ** attempt))
                 log.warning("rate-limited (429), sleep %ds", w)
                 time.sleep(w)
                 continue
-            return e.code, (json.loads(e.read().decode()) if e.fp else {})
+            try:
+                js = r.json()
+            except Exception:
+                js = {}
+            return r.status_code, js
         except Exception as ex:
             if attempt < retry:
                 time.sleep(2 ** attempt)
