@@ -262,12 +262,19 @@ def upload_object(key: str, data: bytes, content_type: str) -> bool:
 def upload_images(need: dict) -> dict:
     """need: {article_url: original_image_url}. Returns {article_url: final_url}.
 
-    Resolution order per article:
-      * already resolved before  -> reuse (dedup map)
-      * R2 not configured         -> keep original URL (graceful)
-      * original URL reachable    -> keep original URL (zero R2 storage)
-      * original dead             -> download + store in R2 (fallback)
-      * download also fails       -> keep original URL as last resort
+    China-reachability policy (FULL MIRROR):
+      * R2 not configured      -> keep original URL (graceful degrade)
+      * original present       -> ALWAYS download + store in R2, serve the R2 URL
+                                   (Cloudflare/R2 is reachable from China; the
+                                    crawler runs in the US where origin hosts like
+                                    googleapis/hf/twitter look "reachable" but are
+                                    frequently blocked from China)
+      * original empty/invalid -> keep empty (frontend renders a branded fallback)
+      * download or upload fails -> keep original URL as last resort
+
+    Any previously cached entry that is still an *original* (non-R2) URL is
+    re-resolved, so legacy articles migrate to R2 on the next run without
+    manually clearing the dedup map.
     """
     have = load_map()
     out: dict = {}
@@ -283,33 +290,31 @@ def upload_images(need: dict) -> dict:
         if not orig or not str(orig).startswith("http"):
             out[a] = orig
             continue
-        if a in have:
-            out[a] = have[a]
+        cached = have.get(a)
+        if cached and str(cached).startswith(R2_PUBLIC_BASE):
+            out[a] = cached          # already R2-hosted -> reuse, no re-upload
         else:
-            to_resolve[a] = orig
+            to_resolve[a] = orig      # no cache, or cached was an original -> rehost
 
     r2_hosted = 0
     for a, orig in to_resolve.items():
-        if R2_FORCE_UPLOAD or probe_image(orig):
-            final = orig                      # original usable (or force mode) -> no R2 storage
+        data, ext = download(orig)
+        if data is None:
+            final = orig              # can't download; keep original as last resort
         else:
-            data, ext = download(orig)
-            if data is None:
-                final = orig                  # can't rehost; keep original
+            key = _rel_path(a, ext)
+            if upload_object(key, data, _ct_for_ext(ext)):
+                final = f"{R2_PUBLIC_BASE}/{key}"
+                r2_hosted += 1
             else:
-                key = _rel_path(a, ext)
-                if upload_object(key, data, _ct_for_ext(ext)):
-                    final = f"{R2_PUBLIC_BASE}/{key}"
-                    r2_hosted += 1
-                else:
-                    final = orig
+                final = orig          # upload failed; keep original
         out[a] = final
         have[a] = final
 
     if to_resolve:
         save_map(have)
-    log.info("img: %d newly hosted on R2 (force=%s) / %d resolved this run",
-             r2_hosted, R2_FORCE_UPLOAD, len(to_resolve))
+    log.info("img: %d newly hosted on R2 / %d resolved this run",
+             r2_hosted, len(to_resolve))
     return out
 
 
