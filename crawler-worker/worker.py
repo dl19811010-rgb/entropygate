@@ -186,14 +186,50 @@ def main() -> None:
         # be a good citizen between sources
         time.sleep(1)
 
-    # ── Pass 2: resolve cover images (original URL first, R2 fallback) ──
-    # image_host keeps the original article image URL whenever it is reachable
-    # (zero R2 storage), and only uploads to R2 when the original is dead.
-    # If R2 creds / R2_PUBLIC_BASE are not set, it degrades to keeping originals.
-    need = {p["url"]: p["image_url"] for p in planned if p.get("image_url")}
+    # ── Pass 2: resolve cover images ──────────────────────────────────
+    # Phase 2 (auto image search): for articles that STILL have no cover after
+    # Pass 1, try an automatic image search (Wikimedia by default, keyless) and
+    # use the best hit as the "original" so image_host mirrors it into R2 like
+    # any other picture. Articles that remain empty keep the branded frontend
+    # fallback. If R2 creds / R2_PUBLIC_BASE are not set, upload_images degrades
+    # to keeping the searched URL as-is.
+    from image_host import upload_images
+
+    auto_search = False
+    prov = "?"
+    try:
+        from image_search import search_images, enabled as search_enabled, provider_name
+        auto_search = search_enabled()
+        prov = provider_name()
+    except Exception as ex:
+        log.warning("image_search import failed (disabled): %s", ex)
+
+    need = {}
+    searched = 0
+    for p in planned:
+        if p.get("image_url"):
+            need[p["url"]] = p["image_url"]
+        elif auto_search:
+            title = (p.get("title") or "").strip()
+            if title:
+                try:
+                    hits = search_images(title)
+                    if hits:
+                        need[p["url"]] = hits[0]["url"]
+                        searched += 1
+                        log.info("img-search [%s] %r -> %s (%s, %s)",
+                                 p["source_name"], title[:60], hits[0]["url"],
+                                 hits[0].get("source"), hits[0].get("license"))
+                except Exception as ex:
+                    log.warning("img-search failed for %s: %s", p["url"], ex)
+                time.sleep(0.5)  # be a polite consumer of the search API
+
+    if auto_search:
+        log.info("img-search: %d article(s) got a searched cover (provider=%s)",
+                 searched, prov)
+
     if need:
         try:
-            from image_host import upload_images
             hosted = upload_images(need)
             for p in planned:
                 p["image_url"] = hosted.get(p["url"]) or p["image_url"]
