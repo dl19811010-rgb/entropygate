@@ -45,11 +45,12 @@ jobs:
           R2_BUCKET: ${{ secrets.R2_BUCKET }}
           R2_PUBLIC_BASE: ${{ secrets.R2_PUBLIC_BASE }}
           R2_FORCE_UPLOAD: "0"   # full-mirror is now the default policy in image_host.upload_images
-          # Phase-2 auto image search: Wikimedia by default (keyless). Add the
-          # matching GitHub Actions secret + set IMAGE_SEARCH_PROVIDER to use a
-          # higher-quality source (unsplash / pexels). AUTO_IMAGE_SEARCH=0 disables.
+          # Phase-2 auto image search: Unsplash by default (Access Key set in
+          # repo secrets). Wikimedia Commons is the keyless fallback if Unsplash
+          # is rate-limited/empty. Set IMAGE_SEARCH_PROVIDER=pexels to use Pexels.
+          # AUTO_IMAGE_SEARCH=0 disables the feature entirely.
           AUTO_IMAGE_SEARCH: "1"
-          IMAGE_SEARCH_PROVIDER: "wikimedia"
+          IMAGE_SEARCH_PROVIDER: "unsplash"
           UNSPLASH_ACCESS_KEY: ${{ secrets.UNSPLASH_ACCESS_KEY }}
           PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
           PER_SOURCE_CAP: "10"
