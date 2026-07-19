@@ -47,24 +47,43 @@ def provider_name() -> str:
     return "wikimedia"
 
 
+def _dispatch(name: str, query: str, max_results: int) -> list:
+    """Call the concrete provider search. ``name`` is one of the known providers."""
+    if name == "unsplash":
+        return _search_unsplash(query, max_results)
+    if name == "pexels":
+        return _search_pexels(query, max_results)
+    return _search_wikimedia(query, max_results)
+
+
 def search_images(query: str, max_results: int = 4) -> list:
     """Return a list of ``{url, title, license, source}`` dicts. Empty on failure.
 
     The first entry is the best match and is what the caller should use.
+
+    Resilience: if the configured (keyed) provider errors or returns nothing —
+    e.g. Unsplash/Pexels rate-limit after their hourly quota — we transparently
+    fall back to the keyless Wikimedia Commons source so an article is never
+    left without a cover purely because a paid API hiccupped.
     """
     q = (query or "").strip()
     if not q:
         return []
+    name = provider_name()
     try:
-        name = provider_name()
-        if name == "unsplash":
-            return _search_unsplash(q, max_results)
-        if name == "pexels":
-            return _search_pexels(q, max_results)
-        return _search_wikimedia(q, max_results)
+        hits = _dispatch(name, q, max_results)
     except Exception as e:  # never break the crawl over a cover image
-        log.warning("image search (%s) failed for %r: %s", provider_name(), q, e)
-        return []
+        log.warning("image search (%s) failed for %r: %s", name, q, e)
+        hits = []
+
+    if not hits and name != "wikimedia":
+        log.info("image search (%s) returned nothing; falling back to wikimedia", name)
+        try:
+            hits = _search_wikimedia(q, max_results)
+        except Exception as e:
+            log.warning("wikimedia fallback also failed for %r: %s", q, e)
+            hits = []
+    return hits
 
 
 # ── HTTP helper ─────────────────────────────────────────────────────────────
