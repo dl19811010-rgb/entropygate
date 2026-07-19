@@ -6,10 +6,22 @@
     "language": "en"
   },
   {
+    "name": "量子位 (QbitAI)",
+    "parser_type": "rss",
+    "feed_url": "https://www.qbitai.com/feed",
+    "language": "zh"
+  },
+  {
     "name": "The Batch (deeplearning.ai)",
     "parser_type": "rsshub",
     "rsshub_route": "/deeplearning/the-batch",
     "language": "en"
+  },
+  {
+    "name": "智东西 (Zhidx)",
+    "parser_type": "rss",
+    "feed_url": "https://www.zhidx.com/rss",
+    "language": "zh"
   },
   {
     "name": "OpenAI Blog",
@@ -18,16 +30,34 @@
     "language": "en"
   },
   {
+    "name": "InfoQ 中文",
+    "parser_type": "rss",
+    "feed_url": "https://www.infoq.cn/feed",
+    "language": "zh"
+  },
+  {
     "name": "Anthropic News",
     "parser_type": "playwright_html",
     "list_url": "https://www.anthropic.com/news",
     "language": "en"
   },
   {
+    "name": "机器之心 (Jiqizhixin)",
+    "parser_type": "rsshub",
+    "rsshub_route": "/jiqizhixin",
+    "language": "zh"
+  },
+  {
     "name": "Google DeepMind Blog",
     "parser_type": "rss",
     "feed_url": "https://deepmind.google/blog/rss.xml",
     "language": "en"
+  },
+  {
+    "name": "36氪 (36Kr)",
+    "parser_type": "rss",
+    "feed_url": "https://36kr.com/feed",
+    "language": "zh"
   },
   {
     "name": "Google AI Blog",
