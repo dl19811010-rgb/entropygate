@@ -58,8 +58,8 @@ def fetch_article_ids() -> list[int]:
     return ids
 
 
-def rewrite_one(aid: int) -> dict:
-    st, js = api("POST", f"/articles/{aid}/rewrite")
+def rewrite_one(aid: int, token: str) -> dict:
+    st, js = api("POST", f"/articles/{aid}/rewrite", token=token)
     if st != 200:
         return {"ok": False, "status": st, "error": str(js)[:200]}
     data = (js or {}).get("data") or {}
@@ -73,14 +73,14 @@ def rewrite_one(aid: int) -> dict:
 def main():
     tok = login()
     log.info("login ok, token length %d", len(tok))
-    ids = fetch_article_ids()
+    ids = fetch_article_ids(tok)
     log.info("target articles: %d (mode=%s)", len(ids), MODE)
 
-    done = fail = skip = 0
+    done = fail = 0
     for i, aid in enumerate(ids, 1):
         log.info("[%d/%d] rewriting article %d", i, len(ids), aid)
         try:
-            res = rewrite_one(aid)
+            res = rewrite_one(aid, tok)
             if res["ok"]:
                 done += 1
                 log.info("  -> ok, flash_meta=%s", res["has_flash_meta"])
