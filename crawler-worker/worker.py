@@ -47,16 +47,33 @@ GLOBAL_CAP = int(os.environ.get("GLOBAL_CAP", "50"))
 
 
 def login() -> str:
-    r = httpx.post(
-        f"{STUDIO_BASE}/api/v1/admin/auth/login",
-        json={"username": "admin", "password": ADMIN_PASS},
-        timeout=30,
-    )
-    r.raise_for_status()
-    tok = r.json().get("data", {}).get("token")
-    if not tok:
-        raise RuntimeError(f"login failed: {r.text[:200]}")
-    return tok
+    # Retry with backoff: the Studio can return transient 503 while it is
+    # mid-rebuild (we trigger deploys independently of the crawl schedule),
+    # and a single 5xx must not fail an entire crawl run.
+    last_err = None
+    for attempt in range(6):
+        try:
+            r = httpx.post(
+                f"{STUDIO_BASE}/api/v1/admin/auth/login",
+                json={"username": "admin", "password": ADMIN_PASS},
+                timeout=30,
+            )
+            if r.status_code >= 500:
+                last_err = f"HTTP {r.status_code}"
+                log.warning("login got %s (attempt %d/6), retrying...",
+                            r.status_code, attempt + 1)
+                time.sleep(10 * (attempt + 1))
+                continue
+            r.raise_for_status()
+            tok = r.json().get("data", {}).get("token")
+            if not tok:
+                raise RuntimeError(f"login failed: {r.text[:200]}")
+            return tok
+        except (httpx.HTTPError, httpx.TimeoutException) as ex:
+            last_err = str(ex)
+            log.warning("login error (attempt %d/6): %s", attempt + 1, ex)
+            time.sleep(10 * (attempt + 1))
+    raise RuntimeError(f"login failed after retries: {last_err}")
 
 
 def load_seen() -> set:
