@@ -21,7 +21,7 @@ import time
 import httpx
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__)))
-from backfill import api, login  # noqa: E402
+from backfill import login  # noqa: E402
 
 logging.basicConfig(
     level=logging.INFO,
@@ -30,6 +30,29 @@ logging.basicConfig(
 log = logging.getLogger("flash-backfill")
 
 MODE = os.environ.get("MODE", "fill").strip().lower()
+BASE = os.getenv("STUDIO_BASE_URL", "https://entropygate.cc.cd").rstrip("/") + "/api/v1"
+
+
+def api(method: str, path: str, token: str, body=None, timeout: int = 300) -> tuple:
+    url = path if path.startswith("http") else BASE + path
+    headers = {
+        "Accept": "application/json",
+        "Content-Type": "application/json",
+        "X-Access-Token": token,
+    }
+    for attempt in range(3):
+        try:
+            r = httpx.request(method, url, headers=headers, json=body, timeout=timeout)
+            try:
+                js = r.json()
+            except Exception:
+                js = {}
+            return r.status_code, js
+        except Exception as ex:
+            log.warning("api attempt %s failed: %s", attempt + 1, ex)
+            if attempt < 2:
+                time.sleep(2 ** attempt)
+    return 0, {"error": "max retries exceeded"}
 
 
 def fetch_article_ids() -> list[int]:
@@ -37,7 +60,7 @@ def fetch_article_ids() -> list[int]:
     ids = []
     page = 1
     while True:
-        st, js = api("GET", f"/articles?status=approved&page={page}&page_size=100&fields=light")
+        st, js = api("GET", f"/articles?status=approved&page={page}&page_size=100&fields=light", token="")
         if st != 200:
             log.error("fetch articles failed %s %s", st, js)
             raise SystemExit(1)
