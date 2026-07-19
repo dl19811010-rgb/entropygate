@@ -83,7 +83,7 @@ def main():
             log.warning("search failed for %s: %s", a["id"], e)
             hits = []
         if hits:
-            need[a["id"]] = hits[0]["url"]
+            need[str(a["id"])] = hits[0]["url"]
             log.info("search #%s -> %s (%s)", a["id"], hits[0]["url"][:60], hits[0].get("source"))
         else:
             log.info("no hit for #%s", a["id"])
@@ -96,9 +96,10 @@ def main():
     hosted = upload_images(need)
     upd = fail = skip = 0
     for a in targets:
-        if a["id"] not in need:
+        key = str(a["id"])
+        if key not in need:
             continue
-        final = hosted.get(a["id"])
+        final = hosted.get(key)
         if not final or not is_r2(final):
             skip += 1
             continue
