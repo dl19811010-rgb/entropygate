@@ -23,6 +23,15 @@ jobs:
         with:
           python-version: "3.11"
 
+      - name: Syntax & smoke check (fail fast)
+        # Runs BEFORE the expensive Playwright/Chromium install so a broken
+        # module fails the run in seconds instead of minutes.
+        run: |
+          python -m pip install --quiet httpx
+          cd crawler-worker
+          python -m py_compile *.py
+          python -m unittest tests.test_smoke -v
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
