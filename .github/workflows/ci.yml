@@ -1,0 +1,41 @@
+name: Crawler CI (syntax + smoke)
+
+# Fail-fast guard for crawler-worker code. Runs on every push to main so a
+# broken module (or a bad Contents-API push) is caught immediately, before the
+# scheduled crawl job ever installs Playwright/Chromium.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "crawler-worker/**"
+      - ".github/workflows/ci.yml"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install test deps
+        run: python -m pip install --quiet httpx
+
+      - name: Syntax check (py_compile all modules)
+        run: |
+          cd crawler-worker
+          python -m py_compile *.py
+
+      - name: Smoke test (no network)
+        run: |
+          cd crawler-worker
+          python -m unittest tests.test_smoke -v
