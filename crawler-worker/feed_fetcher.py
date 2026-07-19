@@ -555,7 +555,7 @@ class FeedFetcher:
                 heading = a.find(["h1", "h2", "h3", "h4"])
                 text = (heading.get_text(strip=True) if heading else a.get_text(strip=True))
                 if not re.search(
-                    r"/(news|blog|post|article|research|press|publication|release|announce|the-batch|issue|edition|newsletter|index)/",
+                    r"/(news|blog|post|article|articles|p|research|press|publication|release|announce|the-batch|issue|edition|newsletter|index)/",
                     href,
                 ):
                     continue
