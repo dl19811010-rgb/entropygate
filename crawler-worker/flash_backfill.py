@@ -73,7 +73,7 @@ def rewrite_one(aid: int, token: str) -> dict:
 def main():
     tok = login()
     log.info("login ok, token length %d", len(tok))
-    ids = fetch_article_ids(tok)
+    ids = fetch_article_ids()
     log.info("target articles: %d (mode=%s)", len(ids), MODE)
 
     done = fail = 0
