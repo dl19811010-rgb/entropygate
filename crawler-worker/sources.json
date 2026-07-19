@@ -43,8 +43,8 @@
   },
   {
     "name": "机器之心 (Jiqizhixin)",
-    "parser_type": "rsshub",
-    "rsshub_route": "/jiqizhixin",
+    "parser_type": "playwright_html",
+    "list_url": "https://www.jiqizhixin.com/",
     "language": "zh"
   },
   {
