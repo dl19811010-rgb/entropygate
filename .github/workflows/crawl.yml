@@ -62,8 +62,13 @@ jobs:
           IMAGE_SEARCH_PROVIDER: "unsplash"
           UNSPLASH_ACCESS_KEY: ${{ secrets.UNSPLASH_ACCESS_KEY }}
           PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
-          PER_SOURCE_CAP: "10"
-          GLOBAL_CAP: "40"
+          # 12 sources now (7 overseas + 5 domestic/zh). Balanced quota so EVERY
+          # source gets coverage each run instead of only the first few: with
+          # 12 sources x PER_SOURCE_CAP(7) = 84 = GLOBAL_CAP, all sources are
+          # served. Previously GLOBAL_CAP=40 starved the trailing sources
+          # (DeepMind / Google AI / Meta never ingested).
+          PER_SOURCE_CAP: "7"
+          GLOBAL_CAP: "84"
         run: |
           cd crawler-worker
           python worker.py
