@@ -1,0 +1,64 @@
+name: Backfill covers (Unsplash/Pexels)
+
+# Retroactive cover-image search+replace for already-published articles.
+# Default mode "fill" only gives covers to articles that have NONE (the
+# brand-color placeholders on the frontend). "replace" swaps existing covers;
+# "all" does both. Trigger manually from the Actions tab and pick a mode.
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "fill | replace | all"
+        required: false
+        default: "fill"
+
+permissions:
+  contents: write
+
+jobs:
+  backfill-covers:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.PAT }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r crawler-worker/requirements.txt
+
+      - name: Run cover backfill
+        env:
+          STUDIO_BASE_URL: ${{ secrets.STUDIO_BASE_URL }}
+          STUDIO_ADMIN_PASSWORD: ${{ secrets.STUDIO_ADMIN_PASSWORD }}
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          R2_PUBLIC_BASE: ${{ secrets.R2_PUBLIC_BASE }}
+          AUTO_IMAGE_SEARCH: "1"
+          IMAGE_SEARCH_PROVIDER: "unsplash"
+          UNSPLASH_ACCESS_KEY: ${{ secrets.UNSPLASH_ACCESS_KEY }}
+          PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+        run: |
+          cd crawler-worker
+          python backfill_covers.py --mode ${{ github.event.inputs.mode || 'fill' }}
+
+      - name: Commit image map
+        if: always()
+        run: |
+          git config user.name "crawler-worker[bot]"
+          git config user.email "bot@entropygate.cc"
+          git remote set-url origin "https://${{ secrets.PAT }}@github.com/${{ github.repository }}.git"
+          [ -f crawler-worker/image_map.json ] && git add crawler-worker/image_map.json
+          git diff --cached --quiet || git commit -m "chore: update image map [skip ci]"
+          git push
+        continue-on-error: true
