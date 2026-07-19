@@ -1,0 +1,31 @@
+name: Flash Meta Backfill
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "fill = only articles missing flash_meta; all = re-run all approved articles"
+        required: true
+        default: "fill"
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    env:
+      STUDIO_BASE_URL: ${{ secrets.STUDIO_BASE_URL }}
+      STUDIO_ADMIN_PASSWORD: ${{ secrets.STUDIO_ADMIN_PASSWORD }}
+      MODE: ${{ github.event.inputs.mode || 'fill' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: pip install httpx
+
+      - name: Run flash meta backfill
+        run: python crawler-worker/flash_backfill.py
