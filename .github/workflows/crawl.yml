@@ -69,6 +69,18 @@ jobs:
           # (DeepMind / Google AI / Meta never ingested).
           PER_SOURCE_CAP: "7"
           GLOBAL_CAP: "84"
+          # ── Multi-worker dedup (cross-runner) ──
+          # CHECK_URLS=1 (default): before POSTing, ask the Studio which
+          # candidate URLs already exist (POST /crawler/check-urls) and drop
+          # them. Combined with the backend's idempotent-by-URL ingest this
+          # makes concurrent crawl jobs safe. Set CHECK_URLS=0 to skip (local
+          # seen_urls.json only).
+          CHECK_URLS: "1"
+          # Optional sharding: run N jobs in parallel, each with a different
+          # SOURCES_FILTER (comma-separated source names) + unique WORKER_ID,
+          # to split the 12 sources across runners. Empty = process all sources.
+          WORKER_ID: "crawler"
+          SOURCES_FILTER: ""
         run: |
           cd crawler-worker
           python worker.py
