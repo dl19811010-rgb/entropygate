@@ -56,7 +56,8 @@ def _dispatch(name: str, query: str, max_results: int) -> list:
     return _search_wikimedia(query, max_results)
 
 
-def search_images(query: str, max_results: int = 4, keywords: list | None = None) -> list:
+def search_images(query: str, max_results: int = 4, keywords: list | None = None,
+                 allow_wikimedia_fallback: bool = True) -> list:
     """Return a list of ``{url, title, tags, license, source}`` dicts. Empty on failure.
 
     The first entry is the best match. When ``keywords`` (English relevance terms)
@@ -81,12 +82,16 @@ def search_images(query: str, max_results: int = 4, keywords: list | None = None
         hits = []
 
     if not hits and name != "wikimedia":
-        log.info("image search (%s) returned nothing; falling back to wikimedia", name)
-        try:
-            hits = _search_wikimedia(q, max_results)
-        except Exception as e:
-            log.warning("wikimedia fallback also failed for %r: %s", q, e)
-            hits = []
+        if allow_wikimedia_fallback:
+            log.info("image search (%s) returned nothing; falling back to wikimedia", name)
+            try:
+                hits = _search_wikimedia(q, max_results)
+            except Exception as e:
+                log.warning("wikimedia fallback also failed for %r: %s", q, e)
+                hits = []
+        else:
+            log.info("image search (%s) returned nothing; wikimedia fallback disabled (backfill) -> cover-less", name)
+            return []
 
     if keywords:
         ranked = rank_and_filter(hits, keywords)

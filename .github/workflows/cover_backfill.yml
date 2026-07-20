@@ -1,22 +1,27 @@
 name: Cover Image Backfill (US egress)
 
 # Backfill of cover images for existing articles that lack one (mostly pre-P3
-# English RSS backlog). Reuses the Phase-2 auto image-search + R2 mirror pipeline.
-# Runs on manual dispatch AND on a weekly Sunday schedule so any article that ends
-# up cover-less later (e.g. an async flash_meta shell that just completed, or a
-# new article whose search briefly failed) is auto-recovered without manual action.
+# English RSS backlog) AND replacement of off-topic covers that were assigned
+# by the old keyless Wikimedia provider. Reuses the Phase-2 auto image-search
+# + R2 mirror pipeline. Uses the SAME relevant provider as the live crawl
+# (Unsplash by default) so covers are on-topic.
+#
+# Runs on manual dispatch AND on a weekly Sunday schedule so any article that
+# ends up cover-less later (e.g. an async flash_meta shell that just completed,
+# or a new article whose search briefly failed) is auto-recovered without
+# manual action. Paced by IMG_SEARCH_PACE to respect Unsplash's free-tier cap.
 on:
   workflow_dispatch: {}
   schedule:
     - cron: "23 4 * * 0"   # every Sunday 04:23 UTC — self-healing cover recovery
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   backfill:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 300
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -48,14 +53,25 @@ jobs:
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           R2_BUCKET: ${{ secrets.R2_BUCKET }}
           R2_PUBLIC_BASE: ${{ secrets.R2_PUBLIC_BASE }}
-          # Use the keyless Wikimedia provider for the backfill so we are not
-          # throttled by Unsplash's 50 req/hour free-tier cap while processing
-          # dozens of articles at once. Unsplash/Pexels keys are still passed so
-          # image_search can fall back if Wikimedia is empty for a given query.
+          # Use the SAME relevant provider as the live crawl (Unsplash). It has
+          # tags so covers are on-topic. Wikimedia is no longer used for backfill
+          # because it cannot rank by relevance (off-topic covers).
           AUTO_IMAGE_SEARCH: "1"
-          IMAGE_SEARCH_PROVIDER: "wikimedia"
+          IMAGE_SEARCH_PROVIDER: "unsplash"
+          IMG_SEARCH_PACE: "75"
           UNSPLASH_ACCESS_KEY: ${{ secrets.UNSPLASH_ACCESS_KEY }}
           PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
         run: |
           cd crawler-worker
           python cover_backfill.py
+
+      - name: Commit image_map (provider tracking for incremental runs)
+        if: always()
+        run: |
+          git config user.name "crawler-worker[bot]"
+          git config user.email "bot@entropygate.cc"
+          git remote set-url origin "https://${{ secrets.PAT }}@github.com/${{ github.repository }}.git"
+          git add crawler-worker/image_map.json
+          git diff --cached --quiet || git commit -m "chore: update cover image_map [skip ci]"
+          git push
+        continue-on-error: true

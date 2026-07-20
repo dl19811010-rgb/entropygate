@@ -3,15 +3,25 @@
 
 Reuses the Phase-2 auto image-search machinery (LLM query + keyword-ranked
 search + R2 mirror) to give a cover image to EVERY existing article that still
-lacks one. This closes the gap for pre-P3 backlog articles (mostly English RSS
-sources that embed no image of their own).
+lacks one, AND to REPLACE covers that were assigned by the old keyless
+Wikimedia provider (which could not rank by relevance and often produced
+off-topic images).
 
-Idempotent: only articles with an empty image_url are processed, and each is
-keyed by its Studio id, so re-running never double-counts or clobbers covers.
+Idempotent + incremental:
+  * The article id is the key, so re-running never double-counts.
+  * ``image_map.json`` records the provider used for each cover. Articles whose
+    cover is already from ``unsplash`` (the relevant provider) are skipped, so
+    weekly self-healing runs only touch new / cover-less articles.
 
-Run via the `cover_backfill.yml` workflow (manual dispatch). Uses the
-keyless Wikimedia provider by default to avoid Unsplash's 50 req/hour cap when
-backfilling dozens of articles at once.
+Provider policy:
+  * Uses the SAME provider as the live crawl (Unsplash by default, env-selected).
+  * ``allow_wikimedia_fallback=False`` is passed so that if Unsplash is empty or
+    rate-limited we leave the article cover-less (branded frontend fallback)
+    rather than assigning an off-topic Wikimedia image.
+
+Run via the `cover_backfill.yml` workflow (manual dispatch or weekly Sunday
+schedule). Paced by ``IMG_SEARCH_PACE`` seconds between searches to stay under
+the Unsplash 50 req/hour free-tier cap.
 """
 import os
 import sys
@@ -25,9 +35,28 @@ sys.path.insert(0, HERE)
 
 STUDIO_BASE = os.environ.get("STUDIO_BASE_URL", "").rstrip("/")
 ADMIN_PASS = os.environ.get("STUDIO_ADMIN_PASSWORD", "")
+# Seconds to wait between Unsplash searches (stay under 50 req/hour).
+PACE = int(os.environ.get("IMG_SEARCH_PACE", "75"))
+IMAGE_MAP_PATH = os.path.join(HERE, "image_map.json")
 
 log = logging.getLogger("cover_backfill")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+
+
+def load_image_map() -> dict:
+    try:
+        with open(IMAGE_MAP_PATH, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+def save_image_map(mp: dict) -> None:
+    try:
+        with open(IMAGE_MAP_PATH, "w", encoding="utf-8") as f:
+            json.dump(mp, f, ensure_ascii=False, indent=2)
+    except Exception as e:  # noqa: BLE001
+        log.warning("could not persist image_map.json: %s", e)
 
 
 def login() -> str:
@@ -78,8 +107,8 @@ def image_query_for(title: str, summary: str, content: str, tok: str):
     return title, None
 
 
-def fetch_no_cover(tok: str):
-    """Return all articles whose image_url is empty (admin list, paginated)."""
+def fetch_all(tok: str):
+    """Return every article (admin list, paginated)."""
     out = []
     page = 1
     h = {"X-Access-Token": tok}
@@ -91,14 +120,20 @@ def fetch_no_cover(tok: str):
             timeout=60,
         )
         d = r.json().get("data", {})
-        for a in d.get("items", []):
-            if not (a.get("image_url") or "").strip():
-                out.append(a)
+        items = d.get("items", [])
+        out.extend(items)
         tot = d.get("total", 0)
-        if len(out) >= tot or not d.get("items"):
+        if len(out) >= tot or not items:
             break
         page += 1
     return out
+
+
+def _already_unsplash(mp: dict, aid) -> bool:
+    entry = mp.get(str(aid))
+    if isinstance(entry, dict):
+        return entry.get("provider") == "unsplash"
+    return False
 
 
 def main() -> None:
@@ -110,51 +145,52 @@ def main() -> None:
     log.info("Studio login OK")
 
     from image_search import search_images, enabled as search_enabled, provider_name
-    from image_host import upload_images
 
     auto_search = search_enabled()
     prov = provider_name()
-    log.info("image search enabled=%s provider=%s", auto_search, prov)
+    log.info("image search enabled=%s provider=%s pace=%ss", auto_search, prov, PACE)
 
-    articles = fetch_no_cover(tok)
-    log.info("cover_backfill: %d article(s) currently have no cover", len(articles))
+    if not auto_search:
+        log.error("image search disabled; nothing to backfill")
+        sys.exit(1)
+
+    mp = load_image_map()
+    articles = fetch_all(tok)
+    log.info("cover_backfill: %d article(s) total in Studio", len(articles))
 
     need = {}
+    skipped_unsplash = 0
     for a in articles:
         aid = a["id"]
         title = (a.get("title") or "").strip()
         if not title:
             continue
-        # NOTE: we do NOT skip transient shells here. A cover only needs the
-        # article title to generate a relevant LLM query, and the regular crawl
-        # never re-visits already-posted articles — so if we skipped shells they
-        # would stay cover-less forever even after their flash_meta lands. Cover
-        # them now from the title; good enough until a later run can refine.
-        q, kws = image_query_for(title, a.get("summary"), a.get("content"), tok)
-        time.sleep(0.4)
-        if not auto_search:
-            log.warning("image search disabled; cannot backfill [id=%s]", aid)
+        # Already has a relevant (Unsplash) cover -> skip for incremental runs.
+        if (a.get("image_url") or "").strip() and _already_unsplash(mp, aid):
+            skipped_unsplash += 1
             continue
+        q, kws = image_query_for(title, a.get("summary"), a.get("content"), tok)
         try:
-            hits = search_images(q, keywords=kws) if kws else search_images(q)
+            # Do NOT fall back to off-topic Wikimedia when Unsplash is empty/limited.
+            hits = search_images(q, keywords=kws, allow_wikimedia_fallback=False) if kws \
+                else search_images(q, allow_wikimedia_fallback=False)
         except Exception as ex:  # noqa: BLE001
             log.warning("img-search failed [id=%s]: %s", aid, ex)
             hits = []
         if hits:
             need[str(aid)] = hits[0]["url"]
             log.info(
-                "img-search [id=%s] %r (q=%r) -> %s (%s, %s)",
-                aid, title[:50], q[:50], hits[0]["url"],
-                hits[0].get("source"), hits[0].get("license"),
+                "img-search [id=%s] %r (q=%r) -> %s (%s)",
+                aid, title[:50], q[:50], hits[0]["url"], hits[0].get("source"),
             )
         else:
-            log.info(
-                "img-search [id=%s] %r (q=%r) no relevant hit -> branded fallback",
-                aid, title[:50], q[:50],
-            )
-        time.sleep(0.5)  # polite consumer of the search API
+            log.info("img-search [id=%s] %r (q=%r) no relevant hit -> keep current", aid, title[:50], q[:50])
+        time.sleep(PACE)  # pace Unsplash to respect 50 req/hour
+
+    log.info("cover_backfill: %d to upload, %d already-unsplash skipped", len(need), skipped_unsplash)
 
     if need:
+        from image_host import upload_images
         hosted = upload_images(need)  # {str(aid): final_url}
         updated = 0
         r2 = 0
@@ -172,13 +208,15 @@ def main() -> None:
                 updated += 1
                 if ".r2.dev" in url or ".r2.cloudflarestorage.com" in url:
                     r2 += 1
+                mp[str(aid)] = {"url": url, "provider": "unsplash"}
                 log.info("updated [id=%s] -> %s", aid, url)
             else:
                 log.warning("update failed [id=%s]: %s", aid, r.text[:160])
         log.info("cover_backfill: updated %d / %d, R2=%d", updated, len(hosted), r2)
     else:
-        log.info("cover_backfill: nothing to do")
+        log.info("cover_backfill: nothing to upload")
 
+    save_image_map(mp)
     # Stay green; all failure modes are already logged above.
     sys.exit(0)
 
