@@ -112,6 +112,42 @@ def post_article(tok: str, payload: dict):
     return True, None
 
 
+def image_query_for(p: dict, tok: str) -> tuple:
+    """Ask the Studio (which holds the LLM key) for an English cover-image
+    search query + relevance keywords for this article. Returns (query, keywords).
+
+    Fully automated — the crawler worker has no LLM key of its own, so it
+    delegates cover-image relevance generation to the Studio's GLM endpoint.
+    On any failure we fall back to the bare article title (no keywords), so the
+    crawler still runs a plain title search instead of crashing the crawl loop.
+    """
+    title = (p.get("title") or "").strip()
+    if not title:
+        return "artificial intelligence technology", None
+    body = {
+        "title": title,
+        "summary": (p.get("summary") or "")[:500],
+        "content": (p.get("content") or "")[:3000],
+    }
+    try:
+        r = httpx.post(
+            f"{STUDIO_BASE}/api/v1/articles/generate-image-query",
+            json=body,
+            headers={"X-Access-Token": tok, "Content-Type": "application/json"},
+            timeout=30,
+        )
+        if r.status_code == 200:
+            data = (r.json() or {}).get("data") or {}
+            q = (data.get("query") or "").strip()
+            kws = [str(k) for k in (data.get("keywords") or []) if k]
+            if q:
+                return q, (kws or None)
+    except Exception as ex:
+        log.warning("generate-image-query failed for %r: %s", title[:60], ex)
+    # Graceful fallback: bare title, no relevance keywords.
+    return title, None
+
+
 def main() -> None:
     if not STUDIO_BASE or not ADMIN_PASS:
         log.error("STUDIO_BASE_URL / STUDIO_ADMIN_PASSWORD not set")
@@ -230,13 +266,17 @@ def main() -> None:
             title = (p.get("title") or "").strip()
             if title:
                 try:
-                    hits = search_images(title)
+                    q, kws = image_query_for(p, tok)
+                    hits = search_images(q, keywords=kws) if kws else search_images(q)
                     if hits:
                         need[p["url"]] = hits[0]["url"]
                         searched += 1
-                        log.info("img-search [%s] %r -> %s (%s, %s)",
-                                 p["source_name"], title[:60], hits[0]["url"],
+                        log.info("img-search [%s] %r (q=%r) -> %s (%s, %s)",
+                                 p["source_name"], title[:60], q[:50], hits[0]["url"],
                                  hits[0].get("source"), hits[0].get("license"))
+                    else:
+                        log.info("img-search [%s] %r (q=%r) no relevant hit -> branded fallback",
+                                 p["source_name"], title[:60], q[:50])
                 except Exception as ex:
                     log.warning("img-search failed for %s: %s", p["url"], ex)
                 time.sleep(0.5)  # be a polite consumer of the search API
