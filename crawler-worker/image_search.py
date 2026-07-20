@@ -60,9 +60,10 @@ def search_images(query: str, max_results: int = 4, keywords: list | None = None
     """Return a list of ``{url, title, tags, license, source}`` dicts. Empty on failure.
 
     The first entry is the best match. When ``keywords`` (English relevance terms)
-    are supplied, candidates are ranked by keyword overlap with their title+tags and
-    only the best match above ``RANK_THRESHOLD`` is kept — fully automated relevance
-    filtering, no manual curation.
+    are supplied, candidates are ranked by keyword overlap with their title+tags+desc
+    and the best match above ``RANK_THRESHOLD`` is preferred. If no candidate clears
+    the bar, the provider's query-based top result is trusted instead of leaving the
+    article cover-less — fully automated relevance, no manual curation.
 
     Resilience: if the configured (keyed) provider errors or returns nothing —
     e.g. Unsplash/Pexels rate-limit after their hourly quota — we transparently
@@ -88,8 +89,16 @@ def search_images(query: str, max_results: int = 4, keywords: list | None = None
             hits = []
 
     if keywords:
-        hits = rank_and_filter(hits, keywords)
-    return hits
+        ranked = rank_and_filter(hits, keywords)
+        if ranked:
+            return ranked[:1]
+        # No candidate passed the keyword-relevance bar. Rather than leave the
+        # article cover-less with a branded fallback, trust the provider's
+        # query-based top result — the LLM-generated query already encodes
+        # relevance, so the top hit is on-topic. This keeps automation coverage
+        # high while still preferring keyword-matched images when available.
+        return hits[:1] if hits else []
+    return hits[:max_results]
 
 
 # Relevance ranking threshold: a candidate must match at least this many English
@@ -101,9 +110,10 @@ RANK_THRESHOLD = 1
 def rank_and_filter(hits: list, keywords: list | None, threshold: int = RANK_THRESHOLD) -> list:
     """Score each candidate by English keyword overlap with its title+tags.
 
-    Returns ``[best]`` when the best score >= threshold, else ``[]`` (caller keeps
-    the branded fallback). This is the automated relevance guard — no vision model
-    needed, just metadata matching against LLM-derived keywords.
+    Returns ``[best]`` when the best score >= threshold, else ``[]`` (the caller then
+    trusts the provider's top query result instead of a branded placeholder). This is
+    the automated relevance guard — no vision model needed, just metadata matching
+    against LLM-derived keywords.
     """
     if not hits or not keywords:
         return hits
@@ -113,7 +123,9 @@ def rank_and_filter(hits: list, keywords: list | None, threshold: int = RANK_THR
     best, best_score = None, -1
     for h in hits:
         text = " ".join(
-            [str(h.get("title") or "")] + [str(t) for t in (h.get("tags") or [])]
+            [str(h.get("title") or "")]
+            + [str(t) for t in (h.get("tags") or [])]
+            + [str(h.get("desc") or "")]
         ).lower()
         score = sum(1 for k in kws if k and k in text)
         if score > best_score:
@@ -170,12 +182,14 @@ def _search_wikimedia(query: str, max_results: int) -> list:
             continue
         em = ii.get("extmetadata") or {}
         lic = (em.get("LicenseShortName") or {}).get("value", "")
+        desc = (em.get("ImageDescription") or {}).get("value", "") or ""
         out.append(
             {
                 "url": url,
                 "title": pg.get("title", ""),
                 "license": lic,
                 "source": "wikimedia",
+                "desc": desc,
             }
         )
         if len(out) >= max_results:
