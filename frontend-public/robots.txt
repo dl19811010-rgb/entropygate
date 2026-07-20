@@ -1,0 +1,8 @@
+User-Agent: *
+Allow: /
+Disallow: /api/
+Disallow: /profile
+Disallow: /settings
+Disallow: /bookmarks
+
+Sitemap: https://aientropygate.com/sitemap.xml
