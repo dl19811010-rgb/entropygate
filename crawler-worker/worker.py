@@ -126,6 +126,27 @@ def post_article(tok: str, payload: dict):
     return True, None
 
 
+def report_run(tok: str, report: dict) -> None:
+    """Tell the Studio about this run so its observation endpoints reflect
+    real collection health (see POST /api/v1/crawler/report).
+
+    Non-fatal: a failure here must never break an otherwise-successful crawl.
+    """
+    try:
+        r = httpx.post(
+            f"{STUDIO_BASE}/api/v1/crawler/report",
+            json=report,
+            headers={"X-Access-Token": tok, "Content-Type": "application/json"},
+            timeout=30,
+        )
+        if r.status_code == 200:
+            log.info("crawler report accepted: %s", (r.json().get("data") or {}))
+        else:
+            log.warning("crawler report rejected HTTP %s: %s", r.status_code, r.text[:160])
+    except Exception as ex:
+        log.warning("crawler report failed (non-fatal): %s", ex)
+
+
 def image_query_for(p: dict, tok: str) -> tuple:
     """Ask the Studio (which holds the LLM key) for an English cover-image
     search query + relevance keywords for this article. Returns (query, keywords).
@@ -170,6 +191,7 @@ def main() -> None:
     tok = login()
     log.info("Studio login OK (worker_id=%s sources_filter=%s)",
              WORKER_ID, SOURCES_FILTER or "ALL")
+    t0 = time.time()
 
     with open(os.path.join(HERE, "sources.json"), encoding="utf-8") as f:
         sources = json.load(f)
@@ -276,8 +298,13 @@ def main() -> None:
         if existing:
             before = len(planned)
             planned, dropped = filter_new(planned, existing)
+            dedup_dropped = before - len(planned)
             log.info("dedup: backend reports %d existing URL(s); dropped %d (kept %d)",
-                     len(existing), before - len(planned), len(planned))
+                     len(existing), dedup_dropped, len(planned))
+        else:
+            dedup_dropped = 0
+    else:
+        dedup_dropped = 0
 
     # ── Pass 2: resolve cover images ──────────────────────────────────
     # Phase 2 (auto image search): for articles that STILL have no cover after
@@ -370,11 +397,33 @@ def main() -> None:
         feed_fetcher.close()
     except Exception:
         pass
+
+    # ── Aggregate run stats for the Studio observation endpoints ──
+    fetched = sum(s["fetched"] for s in stats.values())
+    skipped_local = sum(s["skipped"] for s in stats.values())
+    post_errors = sum(1 for s in stats.values() if "post_fail" in s["err"])
+    error_notes = "; ".join(
+        f"{n}:{s['err']}" for n, s in stats.items() if s["err"]
+    )[:1000]
+    report_run(tok, {
+        "worker_id": WORKER_ID,
+        "status": "completed",
+        "sources_total": len(sources),
+        "discovered": fetched,
+        "planned": len(planned),
+        "new": total_posted,
+        "duplicate": skipped_local + dedup_dropped,
+        "errors": post_errors,
+        "duration_seconds": round(time.time() - t0, 1),
+        "notes": error_notes or None,
+    })
+
     log.info("==== RESULT SUMMARY ====")
     for name, s in stats.items():
         log.info("RESULT source=%s fetched=%s posted=%s skipped=%s err=%s",
                  name, s["fetched"], s["posted"], s["skipped"], s["err"] or "-")
-    log.info("RESULT total_posted=%d planned=%d seen=%d", total_posted, len(planned), len(seen))
+    log.info("RESULT total_posted=%d planned=%d seen=%d dedup_dropped=%d",
+             total_posted, len(planned), len(seen), dedup_dropped)
     # Stay green; failures are captured in the logs above.
     sys.exit(0)
 
