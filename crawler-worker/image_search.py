@@ -56,10 +56,13 @@ def _dispatch(name: str, query: str, max_results: int) -> list:
     return _search_wikimedia(query, max_results)
 
 
-def search_images(query: str, max_results: int = 4) -> list:
-    """Return a list of ``{url, title, license, source}`` dicts. Empty on failure.
+def search_images(query: str, max_results: int = 4, keywords: list | None = None) -> list:
+    """Return a list of ``{url, title, tags, license, source}`` dicts. Empty on failure.
 
-    The first entry is the best match and is what the caller should use.
+    The first entry is the best match. When ``keywords`` (English relevance terms)
+    are supplied, candidates are ranked by keyword overlap with their title+tags and
+    only the best match above ``RANK_THRESHOLD`` is kept — fully automated relevance
+    filtering, no manual curation.
 
     Resilience: if the configured (keyed) provider errors or returns nothing —
     e.g. Unsplash/Pexels rate-limit after their hourly quota — we transparently
@@ -83,7 +86,41 @@ def search_images(query: str, max_results: int = 4) -> list:
         except Exception as e:
             log.warning("wikimedia fallback also failed for %r: %s", q, e)
             hits = []
+
+    if keywords:
+        hits = rank_and_filter(hits, keywords)
     return hits
+
+
+# Relevance ranking threshold: a candidate must match at least this many English
+# keywords (from its Unsplash description/tags) to be used. Below it, the article
+# keeps the branded frontend fallback instead of an off-topic image.
+RANK_THRESHOLD = 1
+
+
+def rank_and_filter(hits: list, keywords: list | None, threshold: int = RANK_THRESHOLD) -> list:
+    """Score each candidate by English keyword overlap with its title+tags.
+
+    Returns ``[best]`` when the best score >= threshold, else ``[]`` (caller keeps
+    the branded fallback). This is the automated relevance guard — no vision model
+    needed, just metadata matching against LLM-derived keywords.
+    """
+    if not hits or not keywords:
+        return hits
+    kws = [str(k).strip().lower() for k in keywords if k]
+    if not kws:
+        return hits
+    best, best_score = None, -1
+    for h in hits:
+        text = " ".join(
+            [str(h.get("title") or "")] + [str(t) for t in (h.get("tags") or [])]
+        ).lower()
+        score = sum(1 for k in kws if k and k in text)
+        if score > best_score:
+            best_score, best = score, h
+    if best is not None and best_score >= threshold:
+        return [best]
+    return []
 
 
 # ── HTTP helper ─────────────────────────────────────────────────────────────
@@ -167,10 +204,17 @@ def _search_unsplash(query: str, max_results: int) -> list:
     for r in data.get("results", []):
         url = (r.get("urls") or {}).get("regular")
         if url:
+            tags = []
+            for t in (r.get("tags") or []):
+                if isinstance(t, dict):
+                    tt = t.get("title")
+                    if tt:
+                        tags.append(str(tt))
             out.append(
                 {
                     "url": url,
                     "title": r.get("description") or r.get("alt_description") or "",
+                    "tags": tags,
                     "license": "Unsplash License",
                     "source": "unsplash",
                 }
@@ -198,6 +242,7 @@ def _search_pexels(query: str, max_results: int) -> list:
                 {
                     "url": url,
                     "title": p.get("alt") or "",
+                    "tags": [],
                     "license": "Pexels License",
                     "source": "pexels",
                 }
