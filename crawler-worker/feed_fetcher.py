@@ -476,7 +476,8 @@ class FeedFetcher:
         return low.startswith("<!doctype html") or low.startswith("<html")
 
     def _pw_text(self, url: str, timeout: int = 40, retry: bool = True,
-                 wait: str = "domcontentloaded") -> str:
+                 wait: str = "domcontentloaded",
+                 wait_selector: Optional[str] = None) -> str:
         """Load a URL in real Chromium and return the rendered HTML.
 
         ``wait`` is the Playwright wait condition:
@@ -502,6 +503,13 @@ class FeedFetcher:
                     pass
                 time.sleep(3)
                 html = page.content()
+            if wait_selector:
+                try:
+                    page.wait_for_selector(wait_selector, timeout=min(timeout, 25) * 1000)
+                    time.sleep(1.5)
+                    html = page.content()
+                except Exception:
+                    logger.warning("wait_selector not found on %s: %s", url, wait_selector)
             return html
         finally:
             ctx.close()
@@ -539,7 +547,13 @@ class FeedFetcher:
             return None
         try:
             logger.info("Playwright links: %s", list_url)
-            html = self._pw_text(list_url, wait="domcontentloaded")
+            html = self._pw_text(
+                list_url, wait="domcontentloaded",
+                wait_selector=(
+                    "a[href*='/articles/'], a[href*='/p/'], "
+                    "a[href*='/post/'], a[href*='/blog/'], a[href*='/news/']"
+                ),
+            )
             if self._is_challenge(html):
                 logger.warning("Still behind challenge: %s", list_url)
                 return []
