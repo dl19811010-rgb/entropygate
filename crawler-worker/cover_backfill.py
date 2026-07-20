@@ -125,12 +125,11 @@ def main() -> None:
         title = (a.get("title") or "").strip()
         if not title:
             continue
-        # Skip transient shells (no structured flash_meta yet): they will get a
-        # cover on the next regular crawl once their flash_meta is generated.
-        fm = a.get("flash_meta") or ""
-        if "info_card" not in fm:
-            log.info("skip [id=%s] %r (no flash_meta yet -> wait for crawl)", aid, title[:50])
-            continue
+        # NOTE: we do NOT skip transient shells here. A cover only needs the
+        # article title to generate a relevant LLM query, and the regular crawl
+        # never re-visits already-posted articles — so if we skipped shells they
+        # would stay cover-less forever even after their flash_meta lands. Cover
+        # them now from the title; good enough until a later run can refine.
         q, kws = image_query_for(title, a.get("summary"), a.get("content"), tok)
         time.sleep(0.4)
         if not auto_search:
