@@ -1,10 +1,14 @@
 name: Cover Image Backfill (US egress)
 
-# One-off / on-demand backfill of cover images for existing articles that lack
-# one (mostly pre-P3 English RSS backlog). Reuses the Phase-2 auto image-search
-# + R2 mirror pipeline. Manual dispatch only — no schedule.
+# Backfill of cover images for existing articles that lack one (mostly pre-P3
+# English RSS backlog). Reuses the Phase-2 auto image-search + R2 mirror pipeline.
+# Runs on manual dispatch AND on a weekly Sunday schedule so any article that ends
+# up cover-less later (e.g. an async flash_meta shell that just completed, or a
+# new article whose search briefly failed) is auto-recovered without manual action.
 on:
   workflow_dispatch: {}
+  schedule:
+    - cron: "23 4 * * 0"   # every Sunday 04:23 UTC — self-healing cover recovery
 
 permissions:
   contents: read
