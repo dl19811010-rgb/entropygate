@@ -23,7 +23,13 @@ to deliver clean title / url / content / summary / source_name / language.
 Dedup
 -----
 seen_urls.json is committed back to the repo each run so we don't re-post the
-same article on every 30-minute cycle.
+same article on every 30-minute cycle. It is a *local speed* cache only.
+
+When several crawl jobs run in parallel (multi-worker), that file is no longer
+authoritative — each runner starts from its own snapshot. True dedup is handled
+by the Studio backend: we pre-filter candidates via ``POST /api/v1/crawler/check-urls``
+(see dedup.py) and the backend's idempotent-by-URL ingest guarantees at most one
+article per source URL even if two workers race to POST the same link.
 """
 import os
 import sys
@@ -34,6 +40,7 @@ from datetime import datetime, timezone
 
 import httpx
 from feed_fetcher import feed_fetcher
+from dedup import filter_new, check_existing_urls
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("crawler-worker")
@@ -44,6 +51,13 @@ ADMIN_PASS = os.environ.get("STUDIO_ADMIN_PASSWORD", "")
 SEEN_FILE = os.path.join(HERE, "seen_urls.json")
 PER_SOURCE_CAP = int(os.environ.get("PER_SOURCE_CAP", "12"))
 GLOBAL_CAP = int(os.environ.get("GLOBAL_CAP", "50"))
+# Optional multi-worker sharding: when several crawl jobs run in parallel they
+# can split the source list via SOURCES_FILTER (comma-separated names). Empty
+# (default) means "process every source" — backward compatible with the single
+# runner. Dedup across workers is handled by the backend (see dedup.py).
+WORKER_ID = os.environ.get("WORKER_ID", "default")
+SOURCES_FILTER = [s.strip() for s in os.environ.get("SOURCES_FILTER", "").split(",") if s.strip()]
+CHECK_URLS = os.environ.get("CHECK_URLS", "1") != "0"  # disable backend pre-filter if needed
 
 
 def login() -> str:
@@ -154,10 +168,20 @@ def main() -> None:
         sys.exit(1)
 
     tok = login()
-    log.info("Studio login OK")
+    log.info("Studio login OK (worker_id=%s sources_filter=%s)",
+             WORKER_ID, SOURCES_FILTER or "ALL")
 
     with open(os.path.join(HERE, "sources.json"), encoding="utf-8") as f:
         sources = json.load(f)
+
+    # Multi-worker sharding: if SOURCES_FILTER is set, only process the named
+    # sources. Empty filter => every source (single-runner default).
+    if SOURCES_FILTER:
+        sources = [s for s in sources if s.get("name") in SOURCES_FILTER]
+        if not sources:
+            log.error("SOURCES_FILTER=%s matched no sources; aborting", SOURCES_FILTER)
+            sys.exit(1)
+        log.info("sharding: %d source(s) selected by SOURCES_FILTER", len(sources))
 
     seen = load_seen()
     planned = []          # articles to POST this run
@@ -238,6 +262,22 @@ def main() -> None:
             break
         # be a good citizen between sources
         time.sleep(1)
+
+    # ── Distributed dedup (cross-worker) ──────────────────────────────
+    # Local ``seen`` already prevents re-fetching within this run. But when
+    # multiple crawl jobs run in parallel, another worker may have just POSTed
+    # a URL this worker hasn't recorded yet. Ask the backend which candidate
+    # URLs already exist and drop them BEFORE we spend bandwidth on full-text
+    # re-fetch / cover-image search. On any failure check_existing_urls returns
+    # an empty set, so we simply proceed (the backend still dedups on ingest).
+    if CHECK_URLS and planned:
+        candidate_urls = [p["url"] for p in planned if p.get("url")]
+        existing = check_existing_urls(STUDIO_BASE, tok, candidate_urls)
+        if existing:
+            before = len(planned)
+            planned, dropped = filter_new(planned, existing)
+            log.info("dedup: backend reports %d existing URL(s); dropped %d (kept %d)",
+                     len(existing), before - len(planned), len(planned))
 
     # ── Pass 2: resolve cover images ──────────────────────────────────
     # Phase 2 (auto image search): for articles that STILL have no cover after
