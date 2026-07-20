@@ -28,7 +28,12 @@ jobs:
           python-version: "3.11"
 
       - name: Install test deps
-        run: python -m pip install --quiet httpx
+        # Installs the crawler's runtime deps (feedparser/bs4/lxml/playwright-python).
+        # NOTE: this does NOT download the Chromium browser binary — that only
+        # happens in crawl.yml via `playwright install --with-deps`. Importing
+        # feed_fetcher works without the binary (Playwright is optional there),
+        # so the import-smoke below stays fast.
+        run: python -m pip install --quiet -r crawler-worker/requirements.txt
 
       - name: Syntax check (py_compile all modules)
         run: |
@@ -38,4 +43,19 @@ jobs:
       - name: Smoke test (no network)
         run: |
           cd crawler-worker
-          python -m unittest tests.test_smoke -v
+          python -m unittest discover -s tests -p 'test_*.py' -v
+
+      - name: Import smoke (catch broken heavy modules)
+        # Going beyond tests.test_smoke: ensure the big modules at least import
+        # cleanly (no syntax/import errors) so a broken feed_fetcher / worker /
+        # image_host is caught in CI instead of mid-crawl on the real runner.
+        run: |
+          cd crawler-worker
+          python - <<'PY'
+          import importlib
+          for mod in ("worker", "feed_fetcher", "image_host", "image_search",
+                      "backfill", "dedup", "cover_backfill", "flash_backfill"):
+              importlib.import_module(mod)
+              print("import ok:", mod)
+          print("IMPORT_SMOKE_OK")
+          PY
