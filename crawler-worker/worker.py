@@ -79,7 +79,8 @@ def login() -> str:
                 time.sleep(10 * (attempt + 1))
                 continue
             r.raise_for_status()
-            tok = r.json().get("data", {}).get("token")
+            data = (r.json() or {}).get("data") or {}
+            tok = data.get("token") if isinstance(data, dict) else None
             if not tok:
                 raise RuntimeError(f"login failed: {r.text[:200]}")
             return tok
@@ -308,11 +309,14 @@ def main() -> None:
 
     # ── Pass 2: resolve cover images ──────────────────────────────────
     # Phase 2 (auto image search): for articles that STILL have no cover after
-    # Pass 1, try an automatic image search (Wikimedia by default, keyless) and
-    # use the best hit as the "original" so image_host mirrors it into R2 like
-    # any other picture. Articles that remain empty keep the branded frontend
-    # fallback. If R2 creds / R2_PUBLIC_BASE are not set, upload_images degrades
-    # to keeping the searched URL as-is.
+    # Pass 1, try an automatic image search (Unsplash by default, keyword-ranked
+    # for relevance) and use the best hit as the "original" so image_host mirrors
+    # it into R2 like any other picture. We deliberately pass
+    # allow_wikimedia_fallback=False so that if Unsplash is empty / rate-limited
+    # we leave the article cover-less (branded frontend fallback) instead of
+    # stamping an off-topic Wikimedia image. Articles that remain empty keep the
+    # branded frontend fallback. If R2 creds / R2_PUBLIC_BASE are not set,
+    # upload_images degrades to keeping the searched URL as-is.
     from image_host import upload_images
 
     auto_search = False
@@ -334,7 +338,10 @@ def main() -> None:
             if title:
                 try:
                     q, kws = image_query_for(p, tok)
-                    hits = search_images(q, keywords=kws) if kws else search_images(q)
+                    # No off-topic Wikimedia fallback: keep cover-less (branded)
+                    # rather than stamp an irrelevant image on a fresh article.
+                    hits = search_images(q, keywords=kws, allow_wikimedia_fallback=False) if kws \
+                        else search_images(q, allow_wikimedia_fallback=False)
                     if hits:
                         need[p["url"]] = hits[0]["url"]
                         searched += 1
