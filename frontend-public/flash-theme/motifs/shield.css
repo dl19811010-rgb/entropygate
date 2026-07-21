@@ -1,0 +1,22 @@
+/* motif-shield · 安全/隐私/治理 */
+.tldr.motif-shield::after {
+  content: "";
+  position: absolute;
+  right: 32px; top: 50%; transform: translateY(-50%);
+  width: 36px; height: 42px;
+  background: rgba(240,180,41,.85);
+  clip-path: polygon(50% 0, 100% 18%, 100% 55%, 50% 100%, 0 55%, 0 18%);
+  opacity: .8;
+  pointer-events: none;
+}
+.tldr.motif-shield::before {
+  content: "";
+  position: absolute;
+  right: 45px; top: 50%; transform: translateY(-58%);
+  width: 11px; height: 6px;
+  border-left: 3px solid rgba(13,27,61,.9);
+  border-bottom: 3px solid rgba(13,27,61,.9);
+  transform: translateY(-58%) rotate(-45deg);
+  opacity: .9;
+  pointer-events: none;
+}

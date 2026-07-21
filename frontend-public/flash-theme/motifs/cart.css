@@ -1,0 +1,23 @@
+/* motif-cart · 电商/消费 */
+.tldr.motif-cart::after {
+  content: "";
+  position: absolute;
+  right: 30px; top: 50%; transform: translateY(-56%);
+  width: 40px; height: 22px;
+  border: 2.5px solid rgba(240,180,41,.9);
+  border-top: none; border-right-width: 0;
+  border-radius: 0 0 4px 4px;
+  transform: translateY(-56%) skewX(-8deg);
+  opacity: .8;
+  pointer-events: none;
+}
+.tldr.motif-cart::before {
+  content: "";
+  position: absolute;
+  right: 34px; top: 64%;
+  width: 6px; height: 6px; border-radius: 50%;
+  background: rgba(240,180,41,.95);
+  box-shadow: 18px 0 0 0 rgba(240,180,41,.95);
+  opacity: .9;
+  pointer-events: none;
+}

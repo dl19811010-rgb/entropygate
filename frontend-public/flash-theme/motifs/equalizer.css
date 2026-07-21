@@ -1,0 +1,15 @@
+/* motif-equalizer · 音乐/音频均衡器 */
+.tldr.motif-equalizer::after {
+  content: "";
+  position: absolute;
+  right: 26px; bottom: 22px;
+  width: 54px; height: 40px;
+  background:
+    linear-gradient(to top, rgba(240,180,41,.9), rgba(240,180,41,.9)) 0 100% / 6px 55% no-repeat,
+    linear-gradient(to top, rgba(240,180,41,.9), rgba(240,180,41,.9)) 12px 100% / 6px 90% no-repeat,
+    linear-gradient(to top, rgba(240,180,41,.9), rgba(240,180,41,.9)) 24px 100% / 6px 35% no-repeat,
+    linear-gradient(to top, rgba(240,180,41,.9), rgba(240,180,41,.9)) 36px 100% / 6px 75% no-repeat,
+    linear-gradient(to top, rgba(240,180,41,.9), rgba(240,180,41,.9)) 48px 100% / 6px 50% no-repeat;
+  opacity: .8;
+  pointer-events: none;
+}

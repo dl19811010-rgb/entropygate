@@ -1,0 +1,9 @@
+/* tokens.css · 8 个预设色板：模型 theme_color 字段的唯一合法取值 */
+[data-theme="violet"] { --accent:#6d4bd8; --navy:#231b4b; --accent-soft:#f0ecfd; --ink-on-navy:#eef2ff; }
+[data-theme="orange"] { --accent:#e25822; --navy:#3d1f0d; --accent-soft:#fdeee6; --ink-on-navy:#fdf3ec; }
+[data-theme="blue"]   { --accent:#1a56db; --navy:#0d1b3d; --accent-soft:#e8effc; --ink-on-navy:#e6ecf9; }
+[data-theme="teal"]   { --accent:#0e7a5f; --navy:#0c2b23; --accent-soft:#e6f4ef; --ink-on-navy:#eaf6f1; }
+[data-theme="green"]  { --accent:#3b6d11; --navy:#173404; --accent-soft:#eaf3de; --ink-on-navy:#eef6e2; }
+[data-theme="amber"]  { --accent:#ba7517; --navy:#412402; --accent-soft:#faeeda; --ink-on-navy:#fbf0e0; }
+[data-theme="red"]    { --accent:#d64545; --navy:#4a1b0c; --accent-soft:#fbeaea; --ink-on-navy:#fbecec; }
+[data-theme="slate"]  { --accent:#5f5e5a; --navy:#2c2c2a; --accent-soft:#f1efe8; --ink-on-navy:#f2f1ec; }

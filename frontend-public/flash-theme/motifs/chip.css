@@ -1,0 +1,24 @@
+/* motif-chip · 芯片/GPU/算力硬件 */
+.tldr.motif-chip::after {
+  content: "";
+  position: absolute;
+  right: 30px; top: 50%; transform: translateY(-50%);
+  width: 46px; height: 46px;
+  border: 2px solid rgba(240,180,41,.8);
+  border-radius: 6px;
+  box-shadow:
+    0 -12px 0 -9px rgba(240,180,41,.7), 0 12px 0 -9px rgba(240,180,41,.7),
+    12px 0 0 -9px rgba(240,180,41,.7), -12px 0 0 -9px rgba(240,180,41,.7);
+  opacity: .8;
+  pointer-events: none;
+}
+.tldr.motif-chip::before {
+  content: "";
+  position: absolute;
+  right: 43px; top: 50%; transform: translateY(-50%);
+  width: 20px; height: 20px;
+  border: 2px solid rgba(255,255,255,.4);
+  border-radius: 3px;
+  opacity: .8;
+  pointer-events: none;
+}

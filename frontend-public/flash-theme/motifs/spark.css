@@ -1,0 +1,11 @@
+/* motif-spark · 通用兜底/星火/亮点 */
+.tldr.motif-spark::after {
+  content: "";
+  position: absolute;
+  right: 34px; top: 50%; transform: translateY(-50%);
+  width: 36px; height: 36px;
+  background: rgba(240,180,41,.95);
+  clip-path: polygon(50% 0, 62% 38%, 100% 50%, 62% 62%, 50% 100%, 38% 62%, 0 50%, 38% 38%);
+  opacity: .8;
+  pointer-events: none;
+}

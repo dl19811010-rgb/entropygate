@@ -1,0 +1,20 @@
+/* motif-pen · 设计/创作工具 */
+.tldr.motif-pen::after {
+  content: "";
+  position: absolute;
+  right: 38px; top: 50%; transform: translateY(-50%) rotate(45deg);
+  width: 10px; height: 38px;
+  background: rgba(240,180,41,.9);
+  clip-path: polygon(50% 0, 100% 18%, 100% 75%, 50% 100%, 0 75%, 0 18%);
+  opacity: .8;
+  pointer-events: none;
+}
+.tldr.motif-pen::before {
+  content: "";
+  position: absolute;
+  right: 47px; top: 62%;
+  width: 5px; height: 5px; border-radius: 50%;
+  background: rgba(13,27,61,.9);
+  opacity: .9;
+  pointer-events: none;
+}

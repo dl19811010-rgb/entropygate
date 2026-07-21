@@ -1,0 +1,16 @@
+/* motif-flask · 研究/实验/算法 */
+.tldr.motif-flask::after {
+  content: "";
+  position: absolute;
+  right: 34px; top: 50%; transform: translateY(-50%);
+  width: 32px; height: 40px;
+  border: 2.5px solid rgba(240,180,41,.9);
+  border-top: none;
+  border-radius: 0 0 12px 12px;
+  clip-path: polygon(28% 0, 72% 0, 72% 30%, 100% 100%, 0 100%, 28% 30%);
+  background:
+    radial-gradient(circle, rgba(255,255,255,.6) 0 2px, transparent 2.5px) 8px 28px / 12px 12px no-repeat,
+    linear-gradient(to top, rgba(240,180,41,.4) 0 45%, transparent 45%);
+  opacity: .8;
+  pointer-events: none;
+}

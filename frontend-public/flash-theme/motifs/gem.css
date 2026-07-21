@@ -1,0 +1,22 @@
+/* motif-gem · 游戏/虚拟物品/精品 */
+.tldr.motif-gem::after {
+  content: "";
+  position: absolute;
+  right: 32px; top: 50%; transform: translateY(-50%);
+  width: 40px; height: 36px;
+  background: rgba(240,180,41,.9);
+  clip-path: polygon(25% 0, 75% 0, 100% 35%, 50% 100%, 0 35%);
+  opacity: .8;
+  pointer-events: none;
+}
+.tldr.motif-gem::before {
+  content: "";
+  position: absolute;
+  right: 32px; top: 38%; transform: translateY(-50%);
+  width: 40px; height: 12px;
+  background:
+    linear-gradient(115deg, transparent 48%, rgba(255,255,255,.55) 48% 52%, transparent 52%),
+    linear-gradient(-115deg, transparent 48%, rgba(255,255,255,.55) 48% 52%, transparent 52%);
+  opacity: .8;
+  pointer-events: none;
+}

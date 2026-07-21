@@ -1,0 +1,21 @@
+/* motif-layers · 3D/生成/分层堆叠 */
+.tldr.motif-layers::after {
+  content: "";
+  position: absolute;
+  right: 30px; top: 50%; transform: translateY(-50%) skewY(-14deg);
+  width: 46px; height: 40px;
+  border-top: 3px solid rgba(240,180,41,.9);
+  border-bottom: 3px solid rgba(255,255,255,.25);
+  opacity: .8;
+  pointer-events: none;
+}
+.tldr.motif-layers::before {
+  content: "";
+  position: absolute;
+  right: 30px; top: 50%; transform: translateY(-50%) skewY(-14deg);
+  width: 46px; height: 40px;
+  border-top: 3px solid rgba(255,255,255,.5);
+  margin-top: 0;
+  opacity: .8;
+  pointer-events: none;
+}

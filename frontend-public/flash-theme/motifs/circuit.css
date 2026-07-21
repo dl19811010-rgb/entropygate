@@ -1,0 +1,18 @@
+/* motif-circuit · 电路纹/编程/工程 */
+.tldr.motif-circuit::after {
+  content: "";
+  position: absolute;
+  right: 22px; top: 50%; transform: translateY(-50%);
+  width: 76px; height: 48px;
+  background-image:
+    radial-gradient(circle, rgba(240,180,41,.9) 0 2.5px, transparent 3px),
+    linear-gradient(rgba(255,255,255,.3), rgba(255,255,255,.3)),
+    linear-gradient(90deg, rgba(255,255,255,.3), rgba(255,255,255,.3)),
+    linear-gradient(rgba(255,255,255,.2), rgba(255,255,255,.2)),
+    linear-gradient(90deg, rgba(255,255,255,.2), rgba(255,255,255,.2));
+  background-size: 8px 8px, 2px 24px, 30px 2px, 2px 18px, 24px 2px;
+  background-position: 0 0, 6px 0, 8px 6px, 40px 12px, 42px 28px;
+  background-repeat: no-repeat;
+  opacity: .75;
+  pointer-events: none;
+}

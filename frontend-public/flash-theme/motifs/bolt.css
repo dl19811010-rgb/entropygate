@@ -1,0 +1,11 @@
+/* motif-bolt · 算力/能耗/速度/闪电 */
+.tldr.motif-bolt::after {
+  content: "";
+  position: absolute;
+  right: 40px; top: 50%; transform: translateY(-50%);
+  width: 24px; height: 44px;
+  background: rgba(240,180,41,.95);
+  clip-path: polygon(60% 0, 20% 55%, 45% 55%, 35% 100%, 85% 42%, 55% 42%);
+  opacity: .8;
+  pointer-events: none;
+}

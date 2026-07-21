@@ -1,0 +1,19 @@
+/* motif-compass · 出海/全球化/地理扩张新闻 */
+.tldr.motif-compass::after {
+  content: "";
+  position: absolute;
+  right: 24px; top: 24px;
+  width: 56px; height: 56px; border-radius: 50%;
+  border: 2px solid rgba(240,180,41,.5);
+  opacity: .8;
+  pointer-events: none;
+}
+.tldr.motif-compass::before {
+  content: "";
+  position: absolute;
+  right: 46px; top: 46px;
+  width: 12px; height: 12px; border-radius: 50%;
+  background: #f0b429;
+  opacity: .9;
+  pointer-events: none;
+}

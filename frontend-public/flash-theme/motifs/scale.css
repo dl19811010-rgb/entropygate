@@ -1,0 +1,24 @@
+/* motif-scale · 政策/法规/天平 */
+.tldr.motif-scale::after {
+  content: "";
+  position: absolute;
+  right: 30px; top: 50%; transform: translateY(-50%);
+  width: 48px; height: 3px;
+  background: rgba(240,180,41,.9);
+  border-radius: 2px;
+  box-shadow: 0 0 0 0 transparent;
+  opacity: .8;
+  pointer-events: none;
+}
+.tldr.motif-scale::before {
+  content: "";
+  position: absolute;
+  right: 30px; top: 50%; transform: translateY(-50%);
+  width: 48px; height: 34px;
+  background:
+    radial-gradient(circle at 8px 100%, transparent 6px, rgba(240,180,41,.85) 6.5px 8px, transparent 8.5px) 0 0 / 16px 100% no-repeat,
+    radial-gradient(circle at 8px 100%, transparent 6px, rgba(240,180,41,.85) 6.5px 8px, transparent 8.5px) 100% 0 / 16px 100% no-repeat,
+    linear-gradient(rgba(240,180,41,.9), rgba(240,180,41,.9)) 50% 0 / 3px 100% no-repeat;
+  opacity: .8;
+  pointer-events: none;
+}

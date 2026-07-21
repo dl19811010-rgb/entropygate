@@ -1,0 +1,24 @@
+/* motif-chart · 金融/财报/增长曲线 */
+.tldr.motif-chart::after {
+  content: "";
+  position: absolute;
+  right: 26px; bottom: 24px;
+  width: 56px; height: 34px;
+  background:
+    linear-gradient(to top, rgba(255,255,255,.28), rgba(255,255,255,.28)) 0 100% / 8px 40% no-repeat,
+    linear-gradient(to top, rgba(255,255,255,.28), rgba(255,255,255,.28)) 16px 100% / 8px 65% no-repeat,
+    linear-gradient(to top, rgba(255,255,255,.28), rgba(255,255,255,.28)) 32px 100% / 8px 52% no-repeat,
+    linear-gradient(to top, rgba(240,180,41,.95), rgba(240,180,41,.95)) 48px 100% / 8px 90% no-repeat;
+  opacity: .8;
+  pointer-events: none;
+}
+.tldr.motif-chart::before {
+  content: "";
+  position: absolute;
+  right: 24px; bottom: 50px;
+  width: 58px; height: 22px;
+  background: linear-gradient(to top right, transparent 46%, rgba(240,180,41,.9) 46% 54%, transparent 54%);
+  -webkit-mask: linear-gradient(#000,#000);
+  opacity: .8;
+  pointer-events: none;
+}

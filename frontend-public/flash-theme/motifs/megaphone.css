@@ -1,0 +1,22 @@
+/* motif-megaphone · 营销/传播/发布 */
+.tldr.motif-megaphone::after {
+  content: "";
+  position: absolute;
+  right: 30px; top: 50%; transform: translateY(-50%);
+  width: 42px; height: 30px;
+  background: rgba(240,180,41,.9);
+  clip-path: polygon(0 35%, 55% 35%, 100% 5%, 100% 95%, 55% 65%, 0 65%);
+  opacity: .8;
+  pointer-events: none;
+}
+.tldr.motif-megaphone::before {
+  content: "";
+  position: absolute;
+  right: 20px; top: 50%; transform: translateY(-50%);
+  width: 10px; height: 22px;
+  border-radius: 0 8px 8px 0;
+  border: 2px solid rgba(255,255,255,.5);
+  border-left: none;
+  opacity: .8;
+  pointer-events: none;
+}

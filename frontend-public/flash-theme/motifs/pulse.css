@@ -1,0 +1,11 @@
+/* motif-pulse · 医疗/心电 */
+.tldr.motif-pulse::after {
+  content: "";
+  position: absolute;
+  right: 24px; top: 50%; transform: translateY(-50%);
+  width: 64px; height: 30px;
+  background: rgba(240,180,41,.9);
+  clip-path: polygon(0 55%, 18% 55%, 28% 20%, 40% 90%, 50% 45%, 58% 55%, 100% 55%, 100% 62%, 56% 62%, 49% 52%, 39% 100%, 27% 30%, 20% 62%, 0 62%);
+  opacity: .8;
+  pointer-events: none;
+}

@@ -1,0 +1,12 @@
+/* motif-soundwave · 语音/音频/音乐新闻 */
+.tldr.motif-soundwave::after {
+  content: "";
+  position: absolute;
+  right: 26px; top: 50%; transform: translateY(-50%);
+  width: 74px; height: 34px;
+  background: repeating-linear-gradient(90deg, rgba(240,180,41,.9) 0 3px, transparent 3px 9px);
+  -webkit-mask: linear-gradient(180deg, transparent 0, #000 45%, #000 55%, transparent 100%);
+          mask: linear-gradient(180deg, transparent 0, #000 45%, #000 55%, transparent 100%);
+  opacity: .8;
+  pointer-events: none;
+}

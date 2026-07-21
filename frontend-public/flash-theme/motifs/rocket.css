@@ -1,0 +1,23 @@
+/* motif-rocket · 商业发布/融资/增长 */
+.tldr.motif-rocket::after {
+  content: "";
+  position: absolute;
+  right: 38px; top: 50%; transform: translateY(-50%) rotate(-45deg);
+  width: 16px; height: 34px;
+  background: rgba(240,180,41,.9);
+  border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%;
+  clip-path: polygon(50% 0, 100% 45%, 78% 100%, 22% 100%, 0 45%);
+  opacity: .8;
+  pointer-events: none;
+}
+.tldr.motif-rocket::before {
+  content: "";
+  position: absolute;
+  right: 40px; top: 62%;
+  width: 14px; height: 16px;
+  background: rgba(255,255,255,.5);
+  transform: translateY(-50%) rotate(-45deg);
+  clip-path: polygon(50% 100%, 0 0, 100% 0);
+  opacity: .8;
+  pointer-events: none;
+}

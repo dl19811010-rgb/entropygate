@@ -1,0 +1,13 @@
+/* motif-book · 教育/论文/知识 */
+.tldr.motif-book::after {
+  content: "";
+  position: absolute;
+  right: 30px; top: 50%; transform: translateY(-50%);
+  width: 44px; height: 32px;
+  background:
+    linear-gradient(to right, rgba(240,180,41,.9) 0 48%, rgba(255,255,255,.45) 48% 52%, rgba(240,180,41,.9) 52% 100%);
+  border-radius: 3px 6px 6px 3px;
+  clip-path: polygon(0 8%, 50% 0, 100% 8%, 100% 92%, 50% 100%, 0 92%);
+  opacity: .8;
+  pointer-events: none;
+}

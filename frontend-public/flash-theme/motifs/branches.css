@@ -1,0 +1,26 @@
+/* motif-branches · 开源/Git分支/协作 */
+.tldr.motif-branches::after {
+  content: "";
+  position: absolute;
+  right: 34px; top: 50%; transform: translateY(-50%);
+  width: 36px; height: 44px;
+  background-image:
+    radial-gradient(circle, rgba(240,180,41,.95) 0 3px, transparent 3.5px),
+    radial-gradient(circle, rgba(240,180,41,.95) 0 3px, transparent 3.5px),
+    radial-gradient(circle, rgba(255,255,255,.6) 0 3px, transparent 3.5px);
+  background-size: 12px 12px;
+  background-position: 0 0, 0 32px, 24px 16px;
+  background-repeat: no-repeat;
+  opacity: .85;
+  pointer-events: none;
+}
+.tldr.motif-branches::before {
+  content: "";
+  position: absolute;
+  right: 40px; top: 50%; transform: translateY(-50%);
+  width: 2px; height: 34px;
+  background: rgba(240,180,41,.6);
+  box-shadow: 16px -8px 0 -0.5px rgba(255,255,255,.35);
+  opacity: .8;
+  pointer-events: none;
+}

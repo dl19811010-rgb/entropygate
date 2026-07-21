@@ -1,0 +1,24 @@
+/* motif-agent · 智能体/机器人 */
+.tldr.motif-agent::after {
+  content: "";
+  position: absolute;
+  right: 32px; top: 50%; transform: translateY(-50%);
+  width: 40px; height: 30px;
+  border: 2px solid rgba(240,180,41,.85);
+  border-radius: 8px;
+  background:
+    radial-gradient(circle, rgba(255,255,255,.9) 0 2.5px, transparent 3px) 12px 12px / 16px 16px no-repeat;
+  opacity: .8;
+  pointer-events: none;
+}
+.tldr.motif-agent::before {
+  content: "";
+  position: absolute;
+  right: 50px; top: 18px;
+  width: 2px; height: 8px;
+  background: rgba(240,180,41,.85);
+  border-radius: 2px;
+  box-shadow: 0 -4px 0 1px rgba(240,180,41,.85);
+  opacity: .8;
+  pointer-events: none;
+}

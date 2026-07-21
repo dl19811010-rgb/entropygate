@@ -1,0 +1,22 @@
+/* motif-gavel · 法律/判决/版权 */
+.tldr.motif-gavel::after {
+  content: "";
+  position: absolute;
+  right: 34px; top: 46%; transform: translateY(-50%) rotate(-38deg);
+  width: 26px; height: 14px;
+  background: rgba(240,180,41,.9);
+  border-radius: 3px;
+  opacity: .8;
+  pointer-events: none;
+}
+.tldr.motif-gavel::before {
+  content: "";
+  position: absolute;
+  right: 44px; top: 56%; transform: rotate(-38deg);
+  width: 4px; height: 26px;
+  background: rgba(240,180,41,.9);
+  border-radius: 2px;
+  box-shadow: 8px 16px 0 2px rgba(255,255,255,.35);
+  opacity: .8;
+  pointer-events: none;
+}

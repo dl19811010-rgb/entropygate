@@ -1,0 +1,25 @@
+/* motif-network · AI Models 神经网络/大模型 */
+.tldr.motif-network::after {
+  content: "";
+  position: absolute;
+  right: 22px; top: 50%; transform: translateY(-50%);
+  width: 84px; height: 56px;
+  background-image:
+    radial-gradient(circle at center, rgba(240,180,41,.95) 0 3px, transparent 3.5px),
+    radial-gradient(circle at center, rgba(255,255,255,.55) 0 2.5px, transparent 3px);
+  background-size: 28px 28px, 28px 28px;
+  background-position: 0 0, 14px 14px;
+  opacity: .8;
+  pointer-events: none;
+}
+.tldr.motif-network::before {
+  content: "";
+  position: absolute;
+  right: 22px; top: 50%; transform: translateY(-50%);
+  width: 84px; height: 56px;
+  background:
+    linear-gradient(26deg, transparent 48.5%, rgba(255,255,255,.28) 48.5% 51.5%, transparent 51.5%),
+    linear-gradient(-26deg, transparent 48.5%, rgba(255,255,255,.28) 48.5% 51.5%, transparent 51.5%);
+  opacity: .8;
+  pointer-events: none;
+}

@@ -1,0 +1,11 @@
+/* motif-cross · 医疗/健康 */
+.tldr.motif-cross::after {
+  content: "";
+  position: absolute;
+  right: 36px; top: 50%; transform: translateY(-50%);
+  width: 34px; height: 34px;
+  background: rgba(240,180,41,.9);
+  clip-path: polygon(35% 0, 65% 0, 65% 35%, 100% 35%, 100% 65%, 65% 65%, 65% 100%, 35% 100%, 35% 65%, 0 65%, 0 35%, 35% 35%);
+  opacity: .8;
+  pointer-events: none;
+}
