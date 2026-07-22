@@ -58,7 +58,8 @@ jobs:
           # repo secrets). Wikimedia Commons is the keyless fallback if Unsplash
           # is rate-limited/empty. Set IMAGE_SEARCH_PROVIDER=pexels to use Pexels.
           # AUTO_IMAGE_SEARCH=0 disables the feature entirely.
-          AUTO_IMAGE_SEARCH: "1"
+          # 2026-07-23 起关停：搜图精准度不达标（离题图），待接入图片生成模型后重开。
+          AUTO_IMAGE_SEARCH: "0"
           IMAGE_SEARCH_PROVIDER: "unsplash"
           UNSPLASH_ACCESS_KEY: ${{ secrets.UNSPLASH_ACCESS_KEY }}
           PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
