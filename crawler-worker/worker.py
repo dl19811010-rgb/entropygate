@@ -216,6 +216,9 @@ def cover_brief_for(p: dict, tok: str):
                     "metaphor": str(data.get("metaphor"))[:400],
                     "style": str(data.get("style") or "")[:40],
                     "palette": str(data.get("palette") or "")[:120],
+                    # 叠字层字段（v2.1）：端点未升级时为空，自动退回无字版
+                    "headline": str(data.get("headline") or "")[:20],
+                    "highlight": [str(w)[:20] for w in (data.get("highlight") or [])][:2],
                 }
         else:
             log.warning("generate-cover-brief HTTP %s for %r",
