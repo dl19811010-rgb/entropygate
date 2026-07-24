@@ -312,15 +312,13 @@ def main() -> None:
         dedup_dropped = 0
 
     # ── Pass 2: resolve cover images ──────────────────────────────────
-    # Phase 2 (auto image search): for articles that STILL have no cover after
-    # Pass 1, try an automatic image search (Unsplash by default, keyword-ranked
-    # for relevance) and use the best hit as the "original" so image_host mirrors
-    # it into R2 like any other picture. We deliberately pass
-    # allow_wikimedia_fallback=False so that if Unsplash is empty / rate-limited
-    # we leave the article cover-less (branded frontend fallback) instead of
-    # stamping an off-topic Wikimedia image. Articles that remain empty keep the
-    # branded frontend fallback. If R2 creds / R2_PUBLIC_BASE are not set,
-    # upload_images degrades to keeping the searched URL as-is.
+    # 图片阶梯（Supabase11 + Z-Image 落地，2026-07-24）：
+    #   ① 正文内嵌 <img>（feed 全文 HTML 零网络，RSSHub 源唯一原图通道）
+    #   ② 原文页 og:image / twitter:image（官方头图，轻量 meta-only）
+    #   ③ AI 文生图（Z-Image-Turbo，无原图时按主题生成贴题插画）
+    #   ④ Unsplash 素材搜图（最后兜底；allow_wikimedia_fallback=False，
+    #      宁可无图走品牌占位也不贴跑题图）
+    # need{} 收集的 URL 统一交 image_host.upload_images 镜像到 R2。
     from image_host import upload_images
 
     auto_search = False
@@ -332,10 +330,19 @@ def main() -> None:
     except Exception as ex:
         log.warning("image_search import failed (disabled): %s", ex)
 
+    # AI 文生图通道（无原图时优先生成贴题插画，风景素材图降为最后兜底）
+    gen_ok = False
+    try:
+        from image_gen import enabled as gen_enabled, remaining as gen_remaining, generate_cover
+        gen_ok = gen_enabled()
+    except Exception as ex:
+        log.warning("image_gen import failed (disabled): %s", ex)
+
     need = {}
     searched = 0
     body_hit = 0
     og_hit = 0
+    gen_hit = 0
     for p in planned:
         if p.get("image_url"):
             need[p["url"]] = p["image_url"]
@@ -361,8 +368,24 @@ def main() -> None:
         if img:
             p["image_url"] = img
             need[p["url"]] = img
-        elif auto_search:
-            # ③ 素材库搜图兜底（原有两段式 P3 逻辑不变）
+            continue
+        # ③ AI 文生图：无原图时按主题生成贴题插画（用户定夺：AI 生成 > 风景素材图）
+        if gen_ok and gen_remaining() > 0:
+            title = (p.get("title") or "").strip()
+            if title:
+                try:
+                    q, _ = image_query_for(p, tok)
+                    g = generate_cover(q)
+                    if g:
+                        gen_hit += 1
+                        p["image_url"] = g
+                        need[p["url"]] = g
+                        log.info("img-gen [%s] %r (q=%r) -> %s",
+                                 p["source_name"], title[:60], q[:50], g[:100])
+                except Exception as ex:
+                    log.warning("img-gen failed for %s: %s", p["url"], ex)
+        # ④ 素材库搜图兜底：AI 生成未启用/失败时的最后通道（原有两段式 P3 逻辑不变）
+        if not p.get("image_url") and auto_search:
             title = (p.get("title") or "").strip()
             if title:
                 try:
@@ -386,6 +409,9 @@ def main() -> None:
 
     if body_hit or og_hit:
         log.info("img-original: %d from body <img>, %d from og:image", body_hit, og_hit)
+
+    if gen_hit:
+        log.info("img-gen: %d article(s) got an AI-generated cover", gen_hit)
 
     if auto_search:
         log.info("img-search: %d article(s) got a searched cover (provider=%s)",
