@@ -62,6 +62,8 @@ jobs:
           COVER_POSTPROCESS: "1"
           # 有字版封面（YouTube 风格 headline 叠字）；退纯底图设 "0"
           COVER_TEXT_OVERLAY: "1"
+          # MS 拥堵期单张排队 >90s，放宽轮询上限（2026-07-25 凌晨实测 4/4 超时 miss）
+          IMAGE_GEN_TIMEOUT: "240"
           # 定点重生成：only_ids 非空时隐含 force，只处理指定 id（小批量试新配方用）
           AI_COVERS_FORCE: ${{ inputs.force || '0' }}
           AI_COVERS_ONLY_IDS: ${{ inputs.only_ids || '' }}
