@@ -39,7 +39,7 @@ import logging
 from datetime import datetime, timezone
 
 import httpx
-from feed_fetcher import feed_fetcher
+from feed_fetcher import feed_fetcher, first_content_image
 from dedup import filter_new, check_existing_urls
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -278,6 +278,10 @@ def main() -> None:
                 "image_url": e.get("image_url") or "",
                 "original_images": e.get("original_images") or [],
                 "published_at": iso(e.get("published_at")),
+                # 图片链路用：RSSHub 源原文被 CF 硬封不可回源抓 og:image；
+                # playwright 源 og:image 需走浏览器渲染
+                "from_rsshub": bool(e.get("from_rsshub")),
+                "use_pw": use_pw,
             })
             if len(planned) >= GLOBAL_CAP:
                 break
@@ -330,10 +334,35 @@ def main() -> None:
 
     need = {}
     searched = 0
+    body_hit = 0
+    og_hit = 0
     for p in planned:
         if p.get("image_url"):
             need[p["url"]] = p["image_url"]
+            continue
+        # Supabase11 落地：原图优先阶梯（官方图最贴题，搜图兜底）
+        # ① 正文内嵌图：feed 已带全文 HTML 时零网络成本（RSSHub 源唯一可用原图通道）
+        img = first_content_image(p.get("content") or "", p["url"])
+        if img:
+            body_hit += 1
+            log.info("img-body [%s] %r -> %s",
+                     p["source_name"], (p.get("title") or "")[:60], img)
+        # ② 原文页 og:image / twitter:image（官方头图）；RSSHub 源原文被 CF 硬封跳过
+        if not img and not p.get("from_rsshub"):
+            try:
+                img = feed_fetcher.fetch_og_image(p["url"], use_pw=p.get("use_pw", False))
+            except Exception as ex:
+                log.warning("og:image failed %s: %s", p["url"], ex)
+            if img:
+                og_hit += 1
+                log.info("img-og [%s] %r -> %s",
+                         p["source_name"], (p.get("title") or "")[:60], img)
+            time.sleep(0.3)  # 礼貌回源
+        if img:
+            p["image_url"] = img
+            need[p["url"]] = img
         elif auto_search:
+            # ③ 素材库搜图兜底（原有两段式 P3 逻辑不变）
             title = (p.get("title") or "").strip()
             if title:
                 try:
@@ -354,6 +383,9 @@ def main() -> None:
                 except Exception as ex:
                     log.warning("img-search failed for %s: %s", p["url"], ex)
                 time.sleep(0.5)  # be a polite consumer of the search API
+
+    if body_hit or og_hit:
+        log.info("img-original: %d from body <img>, %d from og:image", body_hit, og_hit)
 
     if auto_search:
         log.info("img-search: %d article(s) got a searched cover (provider=%s)",
