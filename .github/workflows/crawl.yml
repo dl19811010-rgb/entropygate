@@ -63,6 +63,12 @@ jobs:
           IMAGE_SEARCH_PROVIDER: "unsplash"
           UNSPLASH_ACCESS_KEY: ${{ secrets.UNSPLASH_ACCESS_KEY }}
           PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+          # 2026-07-24 起：无原图时 AI 文生图（Z-Image-Turbo）替代素材搜图。
+          # acct1 token，独立于成稿池（acct2/3）配额；单次运行最多 8 张。
+          MS_IMAGE_TOKEN: ${{ secrets.MS_IMAGE_TOKEN }}
+          IMAGE_GEN_MODEL: "Tongyi-MAI/Z-Image-Turbo"
+          IMAGE_GEN_SIZE: "1664x928"
+          IMAGE_GEN_MAX_PER_RUN: "8"
           # 12 sources now (7 overseas + 5 domestic/zh). Balanced quota so EVERY
           # source gets coverage each run instead of only the first few: with
           # 12 sources x PER_SOURCE_CAP(7) = 84 = GLOBAL_CAP, all sources are
