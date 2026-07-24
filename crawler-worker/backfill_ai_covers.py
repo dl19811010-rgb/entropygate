@@ -1,16 +1,24 @@
 #!/usr/bin/env python3
-"""Backfill AI-generated covers (Z-Image-Turbo) for articles with NO original image.
+"""Backfill AI-generated covers for articles with NO original image.
 
 Target set per article:
   ① first_content_image(stored body HTML) — zero network
   ② og:image / twitter:image of the original page
   both empty  =>  current cover is necessarily a stock photo or the brand
-  placeholder. Those get an AI-generated topical illustration instead
+  placeholder. Those get an AI-generated topical cover instead
   (user decision 2026-07-24: AI 生成 > 风景素材图).
+
+v2 配方（2026-07-25，Supabase12 系统化）：
+  视觉导演 brief（/articles/generate-cover-brief：概念→视觉隐喻）
+  → provider 注册表生图（IMAGE_GEN_PROVIDER，默认 zimage_turbo）
+  → 统一后处理（颗粒/暗角/冷调/JPEG）→ 确定性 key 直传 R2。
+  brief 端点不可用时自动降级旧 image-query 通道。
 
 Idempotent: article URLs already AI-covered are recorded in
 ai_covers_done.json (committed back to the repo by the workflow) and
 skipped on re-run — no duplicate quota burn.
+AI_COVERS_FORCE=1 无视 done 文件强制重生成（配方/模型迭代后的翻新杠杆；
+确定性 key 原地覆盖字节，URL 不变，DB 无需动）。
 
 Cache-busting: same lesson as backfill_hero v2 — upload_images() reuses
 cached image_map.json entries WITHOUT re-upload, so keys we replace are
@@ -111,16 +119,30 @@ def save_done(done):
         json.dump(sorted(done), f, ensure_ascii=False, indent=0)
 
 
-def image_query_for(a, tok):
-    """Ask the Studio (which holds the LLM key) for an English cover query."""
+def cover_brief_for(a, tok):
+    """视觉导演 brief（generate-cover-brief 端点）。返回 dict 或 str 降级 query。
+
+    dict = 标准 v2 路径（概念→隐喻）；str = 端点不可用时的旧 query 通道
+    （image_gen.build_prompt 对 str 套默认风格，仍走统一后处理）。
+    """
     title = (a.get("rewritten_title") or a.get("title") or "").strip()
     if not title:
         return "artificial intelligence technology"
     body = {
         "title": title,
-        "summary": (a.get("summary") or "")[:500],
+        "summary": (a.get("summary") or a.get("ai_summary") or "")[:500],
         "content": (a.get("content") or "")[:3000],
     }
+    st, js = api("POST", "/articles/generate-cover-brief", token=tok, body=body)
+    if st == 200:
+        d = js.get("data") or {}
+        if (d.get("metaphor") or "").strip():
+            return {
+                "metaphor": str(d.get("metaphor"))[:400],
+                "style": str(d.get("style") or "")[:40],
+                "palette": str(d.get("palette") or "")[:120],
+            }
+    # 降级：旧 image-query 端点（服务素材搜图的 query，套默认风格也能出图）
     st, js = api("POST", "/articles/generate-image-query", token=tok, body=body)
     if st == 200:
         q = ((js.get("data") or {}).get("query") or "").strip()
@@ -130,7 +152,9 @@ def image_query_for(a, tok):
 
 
 def main():
-    log.info("r2_enabled=%s gen_enabled=%s gen_remaining=%d", r2_enabled(), gen_enabled(), gen_remaining())
+    force = os.getenv("AI_COVERS_FORCE", "0") == "1"
+    log.info("r2_enabled=%s gen_enabled=%s gen_remaining=%d force=%s",
+             r2_enabled(), gen_enabled(), gen_remaining(), force)
     if not gen_enabled():
         raise SystemExit("MS_IMAGE_TOKEN / MS_TOKEN not set — AI gen channel disabled")
 
@@ -138,10 +162,10 @@ def main():
     log.info("admin login OK")
     arts = fetch_all(tok)
     log.info("total articles=%d", len(arts))
-    done = load_done()
-    log.info("already ai-covered=%d", len(done))
+    done = set() if force else load_done()
+    log.info("already ai-covered=%d%s", len(done), " (FORCE: ignoring done set)" if force else "")
 
-    need, owner = {}, {}
+    need, direct, owner = {}, {}, {}
     n_has_original = n_done_skip = 0
     for a in arts:
         src_url = (a.get("url") or "").strip()
@@ -166,33 +190,45 @@ def main():
         if og:
             n_has_original += 1
             continue
-        # 无原图 → 现封面必为素材图/占位 → AI 生成贴题插画
-        q = image_query_for(a, tok)
-        g = generate_cover(q)
+        # 无原图 → 现封面必为素材图/占位 → AI 生成贴题封面（v2 配方）
+        brief = cover_brief_for(a, tok)
+        g = generate_cover(brief, article_url=src_url)
         if not g:
-            log.info("ai-gen miss [id=%s] %r (q=%r)",
-                     a.get("id"), (a.get("title") or "")[:50], q[:50])
+            meta = brief.get("style") if isinstance(brief, dict) else "legacy-q"
+            log.info("ai-gen miss [id=%s] %r (style=%s)",
+                     a.get("id"), (a.get("title") or "")[:50], meta)
             continue
-        need[src_url] = g
         owner[src_url] = a
-        log.info("ai-gen [id=%s] %r (q=%r) -> %s",
-                 a.get("id"), (a.get("title") or "")[:50], q[:50], g[:90])
+        if is_r2(g):
+            direct[src_url] = g   # 已直传 R2，无需再经 upload_images
+        else:
+            need[src_url] = g     # MS 临时 URL → 交 upload_images 镜像
+        meta = brief.get("style") if isinstance(brief, dict) else "legacy-q"
+        log.info("ai-gen [id=%s] %r (style=%s) -> %s",
+                 a.get("id"), (a.get("title") or "")[:50], meta, g[:90])
 
-    log.info("scan: %d already-original, %d done-skip; %d to ai-cover",
-             n_has_original, n_done_skip, len(need))
-    if not need:
+    log.info("scan: %d already-original, %d done-skip; %d to ai-cover (%d direct-R2)",
+             n_has_original, n_done_skip, len(need) + len(direct), len(direct))
+    if not need and not direct:
         log.info("nothing to backfill")
         return
 
-    # 缓存破坏（同 backfill_hero v2 教训）
+    # 缓存破坏（同 backfill_hero v2 教训）：两条路径的键都先剔除
     mp = load_map()
-    for k in need:
+    for k in list(need) + list(direct):
         mp.pop(k, None)
     save_map(mp)
 
-    hosted = upload_images(need)
+    hosted = upload_images(need) if need else {}
+    hosted.update(direct)
     r2 = sum(1 for v in hosted.values() if is_r2(v))
-    log.info("uploaded to R2=%d/%d", r2, len(need))
+    log.info("hosted on R2=%d/%d", r2, len(hosted))
+
+    # 直传 R2 的条目补录进 image_map（保持 dedup 缓存一致）
+    if direct:
+        mp = load_map()
+        mp.update(direct)
+        save_map(mp)
 
     upd = inplace = fail = 0
     for src_url, a in owner.items():
