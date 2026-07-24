@@ -361,6 +361,17 @@ class FeedFetcher:
             ):
                 tag = soup.find("meta", attrs=attrs)
                 if tag and tag.get("content"):
+                    # 声明尺寸预检：og:image 偶发 200x112 缩略卡，拒收落下一通道
+                    try:
+                        wt = soup.find("meta", attrs={"property": "og:image:width"})
+                        ht = soup.find("meta", attrs={"property": "og:image:height"})
+                        w = int(wt["content"]) if wt and wt.get("content") else 0
+                        h = int(ht["content"]) if ht and ht.get("content") else 0
+                        if (w and w < 400) or (h and h < 200):
+                            logger.info("og:image declared too small %sx%s, skip: %s", w, h, url)
+                            return ""
+                    except (TypeError, ValueError):
+                        pass
                     return urljoin(url, tag["content"].strip())
         except Exception as e:
             logger.warning("og:image fetch failed %s: %s", url, e)
