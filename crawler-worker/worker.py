@@ -184,6 +184,51 @@ def image_query_for(p: dict, tok: str) -> tuple:
     return title, None
 
 
+def cover_brief_for(p: dict, tok: str):
+    """Ask the Studio's 视觉导演 endpoint (/articles/generate-cover-brief) for a
+    visual-metaphor brief {metaphor, style, palette} for this article.
+
+    The brief is the Supabase12 lever: the LLM translates the news concept into
+    a symbolic scene (image models can't do that translation themselves).
+    Returns None on any failure — caller falls back to the legacy
+    generate-image-query channel so the crawl never breaks when the endpoint
+    isn't deployed yet.
+    """
+    title = (p.get("title") or "").strip()
+    if not title:
+        return None
+    body = {
+        "title": title,
+        "summary": (p.get("summary") or "")[:500],
+        "content": (p.get("content") or "")[:3000],
+    }
+    try:
+        r = httpx.post(
+            f"{STUDIO_BASE}/api/v1/articles/generate-cover-brief",
+            json=body,
+            headers={"X-Access-Token": tok, "Content-Type": "application/json"},
+            timeout=30,
+        )
+        if r.status_code == 200:
+            data = (r.json() or {}).get("data") or {}
+            if (data.get("metaphor") or "").strip():
+                return {
+                    "metaphor": str(data.get("metaphor"))[:400],
+                    "style": str(data.get("style") or "")[:40],
+                    "palette": str(data.get("palette") or "")[:120],
+                }
+        else:
+            log.warning("generate-cover-brief HTTP %s for %r",
+                        r.status_code, title[:50])
+    except Exception as ex:
+        log.warning("generate-cover-brief failed for %r: %s", title[:60], ex)
+    return None
+
+
+def _is_r2(u: str) -> bool:
+    return bool(u) and (".r2.dev" in u or ".r2.cloudflarestorage.com" in u)
+
+
 def main() -> None:
     if not STUDIO_BASE or not ADMIN_PASS:
         log.error("STUDIO_BASE_URL / STUDIO_ADMIN_PASSWORD not set")
@@ -312,13 +357,14 @@ def main() -> None:
         dedup_dropped = 0
 
     # ── Pass 2: resolve cover images ──────────────────────────────────
-    # 图片阶梯（Supabase11 + Z-Image 落地，2026-07-24）：
+    # 图片阶梯（Supabase11 + 封面系统化 v2，2026-07-25）：
     #   ① 正文内嵌 <img>（feed 全文 HTML 零网络，RSSHub 源唯一原图通道）
     #   ② 原文页 og:image / twitter:image（官方头图，轻量 meta-only）
-    #   ③ AI 文生图（Z-Image-Turbo，无原图时按主题生成贴题插画）
+    #   ③ AI 文生图（provider 注册表 + 视觉导演 brief + 统一后处理；
+    #      直传 R2 成功即终态，否则回退调用方镜像）
     #   ④ Unsplash 素材搜图（最后兜底；allow_wikimedia_fallback=False，
     #      宁可无图走品牌占位也不贴跑题图）
-    # need{} 收集的 URL 统一交 image_host.upload_images 镜像到 R2。
+    # need{} 收集的非 R2 URL 统一交 image_host.upload_images 镜像到 R2。
     from image_host import upload_images
 
     auto_search = False
@@ -369,19 +415,28 @@ def main() -> None:
             p["image_url"] = img
             need[p["url"]] = img
             continue
-        # ③ AI 文生图：无原图时按主题生成贴题插画（用户定夺：AI 生成 > 风景素材图）
+        # ③ AI 文生图：无原图时生成贴题封面（用户定夺：AI 生成 > 风景素材图）
+        #    标准路径：视觉导演 brief（概念→隐喻，Supabase12）；端点未部署/失败
+        #    时回退旧 image-query 通道（套默认风格的降级 prompt）。
         if gen_ok and gen_remaining() > 0:
             title = (p.get("title") or "").strip()
             if title:
                 try:
-                    q, _ = image_query_for(p, tok)
-                    g = generate_cover(q)
+                    brief = cover_brief_for(p, tok)
+                    if brief is None:
+                        q, _ = image_query_for(p, tok)
+                        brief = q  # str 降级：build_prompt 套默认风格
+                    g = generate_cover(brief, article_url=p["url"])
                     if g:
                         gen_hit += 1
                         p["image_url"] = g
-                        need[p["url"]] = g
-                        log.info("img-gen [%s] %r (q=%r) -> %s",
-                                 p["source_name"], title[:60], q[:50], g[:100])
+                        if _is_r2(g):
+                            pass                # 已直传 R2，无需再镜像
+                        else:
+                            need[p["url"]] = g  # MS 临时 URL → 交 upload_images
+                        meta = brief.get("style") if isinstance(brief, dict) else "legacy-q"
+                        log.info("img-gen [%s] %r (style=%s) -> %s",
+                                 p["source_name"], title[:60], meta, g[:100])
                 except Exception as ex:
                     log.warning("img-gen failed for %s: %s", p["url"], ex)
         # ④ 素材库搜图兜底：AI 生成未启用/失败时的最后通道（原有两段式 P3 逻辑不变）
