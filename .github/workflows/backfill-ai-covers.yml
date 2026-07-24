@@ -5,7 +5,20 @@ name: Backfill AI covers (Z-Image-Turbo)
 # topical illustration (ModelScope Tongyi-MAI/Z-Image-Turbo).
 # Idempotent via crawler-worker/ai_covers_done.json. Trigger manually.
 on:
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Set to 1 to re-generate even done items (in-place R2 overwrite)"
+        required: false
+        default: "0"
+      only_ids:
+        description: "Comma-separated article ids to process only (e.g. 239,244). Implies force."
+        required: false
+        default: ""
+      max_per_run:
+        description: "Max NEW generations this run"
+        required: false
+        default: "25"
 
 permissions:
   contents: write
@@ -45,8 +58,13 @@ jobs:
           # 翻新存量设 AI_COVERS_FORCE: "1"（确定性 key 原地覆盖，URL 不变）。
           MS_IMAGE_TOKEN: ${{ secrets.MS_IMAGE_TOKEN }}
           IMAGE_GEN_PROVIDER: "zimage_turbo"
-          IMAGE_GEN_MAX_PER_RUN: "25"
+          IMAGE_GEN_MAX_PER_RUN: ${{ inputs.max_per_run || '25' }}
           COVER_POSTPROCESS: "1"
+          # 有字版封面（YouTube 风格 headline 叠字）；退纯底图设 "0"
+          COVER_TEXT_OVERLAY: "1"
+          # 定点重生成：only_ids 非空时隐含 force，只处理指定 id（小批量试新配方用）
+          AI_COVERS_FORCE: ${{ inputs.force || '0' }}
+          AI_COVERS_ONLY_IDS: ${{ inputs.only_ids || '' }}
         run: |
           cd crawler-worker
           python backfill_ai_covers.py
