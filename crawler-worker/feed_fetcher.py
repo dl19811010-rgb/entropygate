@@ -330,6 +330,42 @@ class FeedFetcher:
             logger.warning("Failed to fetch full article %s: %s", url, e)
             return result
 
+    def fetch_og_image(self, url: str, use_pw: bool = False, timeout: int = 25) -> str:
+        """Fetch ONLY the page's share/hero image (og:image / twitter:image).
+
+        Much cheaper than fetch_article_full: one GET, meta tags parsed only.
+        The source's own hero image is the most on-topic cover available —
+        preferred over stock-photo search (Supabase11 priority ladder).
+        Returns "" when missing/unreachable; callers then fall through to
+        the next image channel.
+        """
+        try:
+            from urllib.parse import urljoin
+            if use_pw:
+                html = self._pw_text(url, 40, retry=False, wait="domcontentloaded")
+                if self._is_challenge(html):
+                    return ""
+            else:
+                resp = self._client(None).get(url, timeout=timeout)
+                if resp.status_code != 200:
+                    return ""
+                html = resp.text
+            # meta 标签都在 <head>，截断省解析量
+            soup = BeautifulSoup(html[:250000], "lxml")
+            for attrs in (
+                {"property": "og:image"},
+                {"property": "og:image:url"},
+                {"property": "og:image:secure_url"},
+                {"name": "twitter:image"},
+                {"name": "twitter:image:src"},
+            ):
+                tag = soup.find("meta", attrs=attrs)
+                if tag and tag.get("content"):
+                    return urljoin(url, tag["content"].strip())
+        except Exception as e:
+            logger.warning("og:image fetch failed %s: %s", url, e)
+        return ""
+
     def _parse_date(self, entry) -> Optional[datetime.datetime]:
         """Parse the article publish date from a feed entry into a UTC datetime.
 
@@ -476,8 +512,7 @@ class FeedFetcher:
         return low.startswith("<!doctype html") or low.startswith("<html")
 
     def _pw_text(self, url: str, timeout: int = 40, retry: bool = True,
-                 wait: str = "domcontentloaded",
-                 wait_selector: Optional[str] = None) -> str:
+                 wait: str = "domcontentloaded") -> str:
         """Load a URL in real Chromium and return the rendered HTML.
 
         ``wait`` is the Playwright wait condition:
@@ -503,13 +538,6 @@ class FeedFetcher:
                     pass
                 time.sleep(3)
                 html = page.content()
-            if wait_selector:
-                try:
-                    page.wait_for_selector(wait_selector, timeout=min(timeout, 25) * 1000)
-                    time.sleep(1.5)
-                    html = page.content()
-                except Exception:
-                    logger.warning("wait_selector not found on %s: %s", url, wait_selector)
             return html
         finally:
             ctx.close()
@@ -547,13 +575,7 @@ class FeedFetcher:
             return None
         try:
             logger.info("Playwright links: %s", list_url)
-            html = self._pw_text(
-                list_url, wait="domcontentloaded",
-                wait_selector=(
-                    "a[href*='/articles/'], a[href*='/p/'], "
-                    "a[href*='/post/'], a[href*='/blog/'], a[href*='/news/']"
-                ),
-            )
+            html = self._pw_text(list_url, wait="domcontentloaded")
             if self._is_challenge(html):
                 logger.warning("Still behind challenge: %s", list_url)
                 return []
@@ -688,6 +710,53 @@ class FeedFetcher:
             except Exception:
                 pass
             self._PW = None
+
+
+_IMG_SKIP_HINTS = (
+    "pixel", "tracking", "beacon", "1x1", "spacer", "doubleclick",
+    "analytics", "feedburner", "gravatar", "wp-includes/emoji",
+)
+
+
+def first_content_image(html: str, base_url: str = "") -> str:
+    """Extract the first meaningful <img> from article body HTML (feed content).
+
+    Zero network cost — the body was already fetched. Skips icons / tracking
+    pixels by URL hints and declared dimensions. Returns "" when nothing
+    usable so callers can fall through to og:image / image search.
+    """
+    if not html or "<img" not in html.lower():
+        return ""
+    try:
+        from urllib.parse import urljoin
+        soup = BeautifulSoup(html, "lxml")
+        for img in soup.find_all("img"):
+            src = (
+                img.get("src")
+                or img.get("data-src")
+                or img.get("data-lazy-src")
+                or img.get("data-original")
+                or ""
+            ).strip()
+            if not src or src.startswith("data:"):
+                continue
+            if src.startswith("//"):
+                src = "https:" + src
+            abs_src = urljoin(base_url, src) if base_url else src
+            low = abs_src.lower()
+            if any(t in low for t in _IMG_SKIP_HINTS):
+                continue
+            try:
+                w = int(img.get("width") or 0)
+                h = int(img.get("height") or 0)
+                if (w and w < 240) or (h and h < 140):
+                    continue
+            except (TypeError, ValueError):
+                pass
+            return abs_src
+    except Exception:
+        pass
+    return ""
 
 
 feed_fetcher = FeedFetcher()
