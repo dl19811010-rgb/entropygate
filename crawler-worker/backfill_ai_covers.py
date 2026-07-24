@@ -19,6 +19,8 @@ ai_covers_done.json (committed back to the repo by the workflow) and
 skipped on re-run — no duplicate quota burn.
 AI_COVERS_FORCE=1 无视 done 文件强制重生成（配方/模型迭代后的翻新杠杆；
 确定性 key 原地覆盖字节，URL 不变，DB 无需动）。
+AI_COVERS_ONLY_IDS="239,244" 只处理指定 id（隐含 force，并跳过 og 慢查），
+用于新配方小批量线上验证。
 
 Cache-busting: same lesson as backfill_hero v2 — upload_images() reuses
 cached image_map.json entries WITHOUT re-upload, so keys we replace are
@@ -141,6 +143,9 @@ def cover_brief_for(a, tok):
                 "metaphor": str(d.get("metaphor"))[:400],
                 "style": str(d.get("style") or "")[:40],
                 "palette": str(d.get("palette") or "")[:120],
+                # 叠字层字段（v2.1）：端点未升级时为空，自动退回无字版
+                "headline": str(d.get("headline") or "")[:20],
+                "highlight": [str(w)[:20] for w in (d.get("highlight") or [])][:2],
             }
     # 降级：旧 image-query 端点（服务素材搜图的 query，套默认风格也能出图）
     st, js = api("POST", "/articles/generate-image-query", token=tok, body=body)
@@ -153,8 +158,13 @@ def cover_brief_for(a, tok):
 
 def main():
     force = os.getenv("AI_COVERS_FORCE", "0") == "1"
-    log.info("r2_enabled=%s gen_enabled=%s gen_remaining=%d force=%s",
-             r2_enabled(), gen_enabled(), gen_remaining(), force)
+    only_ids = {int(x) for x in os.getenv("AI_COVERS_ONLY_IDS", "").replace("，", ",").split(",")
+                if x.strip().isdigit()}
+    if only_ids:
+        force = True  # 定点重生成隐含 force（否则 done 集会把目标全跳过）
+    log.info("r2_enabled=%s gen_enabled=%s gen_remaining=%d force=%s only_ids=%s",
+             r2_enabled(), gen_enabled(), gen_remaining(), force,
+             sorted(only_ids) if only_ids else "-")
     if not gen_enabled():
         raise SystemExit("MS_IMAGE_TOKEN / MS_TOKEN not set — AI gen channel disabled")
 
@@ -171,8 +181,28 @@ def main():
         src_url = (a.get("url") or "").strip()
         if not src_url.startswith("http"):
             continue
+        if only_ids and a.get("id") not in only_ids:
+            continue
         if src_url in done:
             n_done_skip += 1
+            continue
+        # 定点模式：目标已有 AI 封面（force 语义）→ 跳过 og 慢查，直接重生成
+        if only_ids:
+            brief = cover_brief_for(a, tok)
+            g = generate_cover(brief, article_url=src_url)
+            if not g:
+                meta = brief.get("style") if isinstance(brief, dict) else "legacy-q"
+                log.info("ai-gen miss [id=%s] %r (style=%s)",
+                         a.get("id"), (a.get("title") or "")[:50], meta)
+                continue
+            owner[src_url] = a
+            if is_r2(g):
+                direct[src_url] = g
+            else:
+                need[src_url] = g
+            meta = brief.get("style") if isinstance(brief, dict) else "legacy-q"
+            log.info("ai-gen [id=%s] %r (style=%s) -> %s",
+                     a.get("id"), (a.get("title") or "")[:50], meta, g[:90])
             continue
         if gen_remaining() <= 0:
             log.info("gen quota for this run exhausted, stop scanning")
