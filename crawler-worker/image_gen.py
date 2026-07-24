@@ -146,8 +146,11 @@ def build_prompt(brief) -> str:
     """装配生成 prompt：视觉隐喻 + 风格后缀 + 色板 + 负面约束。
 
     brief 可以是：
-      dict  {metaphor, style, palette}（后端视觉导演产出，标准路径）
+      dict  {metaphor, style, palette, headline?, highlight?}（后端视觉导演产出）
       str   旧式英文 query（端点不可用时的降级路径，套默认风格）
+
+    叠字层开启且 brief 带 headline 时追加构图指令：底图左侧留暗色平静区域
+    供文字排版（两阶段合成：字由 text_overlay 程序绘制，不由模型画）。
     """
     if isinstance(brief, str):
         brief = {"metaphor": brief, "style": DEFAULT_STYLE, "palette": DEFAULT_PALETTE}
@@ -156,9 +159,20 @@ def build_prompt(brief) -> str:
     style = (brief.get("style") or "").strip()
     suffix = STYLE_PRESETS.get(style) or STYLE_PRESETS[DEFAULT_STYLE]
     palette = (brief.get("palette") or "").strip() or DEFAULT_PALETTE
+    composition = ""
+    try:
+        import text_overlay
+        if text_overlay.enabled() and (brief.get("headline") or "").strip():
+            composition = (
+                " Composition: main subject weighted toward the right side, "
+                "left half kept dark, calm and relatively empty for a headline "
+                "text overlay."
+            )
+    except Exception:  # noqa: BLE001
+        pass
     return (
         f"{metaphor[:400]}. {suffix}. "
-        f"Color mood: {palette[:120]}. {_NEGATIVE}"
+        f"Color mood: {palette[:120]}.{composition} {_NEGATIVE}"
     )
 
 
@@ -261,10 +275,18 @@ def _generate(brief, provider: str = None):
         import postprocess
         out = postprocess.cover_finish(raw)
         # 后处理内部失败会原样回退（可能是 PNG 原字节），调用方按魔数定格式
-        return out, ms_url
     except Exception as ex:  # noqa: BLE001
         log.warning("postprocess import/run failed, keep raw: %s", ex)
-        return raw, ms_url
+        out = raw
+    # 第二阶段：程序化叠字（两阶段合成；brief 带 headline 时）
+    if isinstance(brief, dict) and (brief.get("headline") or "").strip():
+        try:
+            import text_overlay
+            out = text_overlay.apply_headline(
+                out, brief["headline"], brief.get("highlight") or [])
+        except Exception as ex:  # noqa: BLE001
+            log.warning("text overlay failed, keep base image: %s", ex)
+    return out, ms_url
 
 
 def generate_image(brief, provider: str = None) -> bytes:
