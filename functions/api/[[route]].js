@@ -40,12 +40,17 @@ export async function onRequest(context) {
   const headers = new Headers(request.headers);
   headers.delete("host");
 
+  // redirect: "manual" — CRITICAL for OAuth. The auth callback endpoint
+  // answers 302 -> {frontend}/login?token=... and the browser MUST receive
+  // that 302 itself; with the default "follow" the edge would silently fetch
+  // the login page server-side and return its HTML with 200, losing the token.
   if (request.method === "GET") {
-    const resp = await fetch(upstream, { method: "GET", headers });
+    const resp = await fetch(upstream, { method: "GET", headers, redirect: "manual" });
     if (resp.ok) {
       const h = new Headers(resp.headers);
-      // Only hint edge caching for anonymous GETs.
-      if (!headers.has("x-access-token")) {
+      // Only hint edge caching for anonymous, non-auth GETs. Auth endpoints
+      // (oauth login state cookie, /me, etc.) must never be edge-cached.
+      if (!headers.has("x-access-token") && !route.startsWith("v1/auth/")) {
         h.set("Cache-Control", "public, max-age=60");
       }
       return new Response(resp.body, { status: resp.status, headers: h });
@@ -58,5 +63,6 @@ export async function onRequest(context) {
     method: request.method,
     headers,
     body: request.body,
+    redirect: "manual",
   });
 }
