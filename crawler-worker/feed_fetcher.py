@@ -24,6 +24,28 @@ HTTP_TIMEOUT = 30
 USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
 
 
+
+# ── 站点默认 og:image 识别（2026-07-26）────────────────────────────────
+# 量子位(qbitai)等站把 og:image 统一设为站点级默认图（head.jpg/logo），并非
+# 文章专属头图。worker Pass2 阶梯②抓到它会 if img: continue 截胡，导致 AI
+# 有字版封面(阶梯③)不被触发，封面变成灰色头像占位。命中以下命名 → 视为无图。
+_SITE_DEFAULT_IMG_HINTS = (
+    "head.jpg", "head.png", "/logo", "logo.", "default", "placeholder",
+    "og-default", "og_default", "site-image", "site_image", "avatar",
+    "favicon", "/icon", "brand", "share-default", "cover-default",
+    "no-image", "noimage", "blank",
+)
+
+
+def _is_site_default_image(u: str) -> bool:
+    """启发式：URL 路径是否像站点级默认/占位图而非文章专属头图。"""
+    try:
+        from urllib.parse import urlparse
+        p = (urlparse(u).path or "").lower()
+    except Exception:
+        p = (u or "").lower()
+    return any(h in p for h in _SITE_DEFAULT_IMG_HINTS)
+
 class FeedFetcher:
     def __init__(self):
         self.client = httpx.Client(
