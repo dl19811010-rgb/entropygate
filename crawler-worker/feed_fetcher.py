@@ -394,7 +394,11 @@ class FeedFetcher:
                             return ""
                     except (TypeError, ValueError):
                         pass
-                    return urljoin(url, tag["content"].strip())
+                    candidate = urljoin(url, tag["content"].strip())
+                    if _is_site_default_image(candidate):
+                        logger.info("og:image site-default, skip to AI cover: %s", candidate)
+                        return ""
+                    return candidate
         except Exception as e:
             logger.warning("og:image fetch failed %s: %s", url, e)
         return ""
