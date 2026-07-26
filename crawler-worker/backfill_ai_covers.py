@@ -158,6 +158,8 @@ def cover_brief_for(a, tok):
 
 def main():
     force = os.getenv("AI_COVERS_FORCE", "0") == "1"
+    # 修复模式（定时任务用）：只做 done 漂移检测+重指，不生成、不做 og 慢查
+    repair_only = os.getenv("AI_COVERS_REPAIR_ONLY", "0") == "1"
     only_ids = {int(x) for x in os.getenv("AI_COVERS_ONLY_IDS", "").replace("，", ",").split(",")
                 if x.strip().isdigit()}
     if only_ids:
@@ -176,6 +178,8 @@ def main():
     log.info("already ai-covered=%d%s", len(done), " (FORCE: ignoring done set)" if force else "")
 
     need, direct, owner = {}, {}, {}
+    drift = {}  # src_url -> (article, expected_r2_url)：DB 指针漂移待修复
+    mp0 = load_map()  # done 漂移检测用（image_map 持有最终 R2 URL）
     n_has_original = n_done_skip = 0
     for a in arts:
         src_url = (a.get("url") or "").strip()
@@ -185,7 +189,17 @@ def main():
             continue
         if src_url in done:
             n_done_skip += 1
+            # 漂移修复（2026-07-26）：Studio 重建会回滚重建前约半小时内的 DB
+            # 写入（ossfs 冲刷窗口），done 文章的 image_url 被打回源站默认图/
+            # 原始直链。两条图片管线（hero 原图 / AI 封面）回写的都是 R2 URL，
+            # 因此「done 但现值非 R2」必为漂移 → 按 map 记录重指，零配额。
+            cur = (a.get("image_url") or "")
+            exp = mp0.get(src_url) or ""
+            if exp and is_r2(exp) and not is_r2(cur):
+                drift[src_url] = (a, exp)
             continue
+        if repair_only:
+            continue  # 修复模式：非 done 文章不处理（生成留给手动/定点跑）
         # 定点模式：目标已有 AI 封面（force 语义）→ 跳过 og 慢查，直接重生成
         if only_ids:
             brief = cover_brief_for(a, tok)
@@ -239,6 +253,22 @@ def main():
 
     log.info("scan: %d already-original, %d done-skip; %d to ai-cover (%d direct-R2)",
              n_has_original, n_done_skip, len(need) + len(direct), len(direct))
+
+    # 漂移修复先行：只回写指针，不经过生成/上传，any run 都执行
+    if drift:
+        rep = 0
+        for src_url, (a, exp) in drift.items():
+            st, js = api("PUT", f"/articles/{a['id']}", token=tok, body={"image_url": exp})
+            if st == 200:
+                rep += 1
+                log.info("drift-fix [id=%s] %r -> %s",
+                         a.get("id"), (a.get("title") or "")[:40], exp[:90])
+            else:
+                log.warning("drift-fix PUT failed [id=%s] %s %s",
+                            a.get("id"), st, str(js)[:140])
+            time.sleep(0.2)
+        log.info("drift repair done: %d/%d re-pointed", rep, len(drift))
+
     if not need and not direct:
         log.info("nothing to backfill")
         return
