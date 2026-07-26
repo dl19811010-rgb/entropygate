@@ -5,4 +5,74 @@ Disallow: /profile
 Disallow: /settings
 Disallow: /bookmarks
 
+User-Agent: GPTBot
+Allow: /
+Disallow: /api/
+Disallow: /profile
+Disallow: /settings
+Disallow: /bookmarks
+
+User-Agent: OAI-SearchBot
+Allow: /
+Disallow: /api/
+Disallow: /profile
+Disallow: /settings
+Disallow: /bookmarks
+
+User-Agent: ChatGPT-User
+Allow: /
+Disallow: /api/
+Disallow: /profile
+Disallow: /settings
+Disallow: /bookmarks
+
+User-Agent: ClaudeBot
+Allow: /
+Disallow: /api/
+Disallow: /profile
+Disallow: /settings
+Disallow: /bookmarks
+
+User-Agent: Claude-User
+Allow: /
+Disallow: /api/
+Disallow: /profile
+Disallow: /settings
+Disallow: /bookmarks
+
+User-Agent: anthropic-ai
+Allow: /
+Disallow: /api/
+Disallow: /profile
+Disallow: /settings
+Disallow: /bookmarks
+
+User-Agent: PerplexityBot
+Allow: /
+Disallow: /api/
+Disallow: /profile
+Disallow: /settings
+Disallow: /bookmarks
+
+User-Agent: Bytespider
+Allow: /
+Disallow: /api/
+Disallow: /profile
+Disallow: /settings
+Disallow: /bookmarks
+
+User-Agent: Meta-ExternalAgent
+Allow: /
+Disallow: /api/
+Disallow: /profile
+Disallow: /settings
+Disallow: /bookmarks
+
+User-Agent: CCBot
+Allow: /
+Disallow: /api/
+Disallow: /profile
+Disallow: /settings
+Disallow: /bookmarks
+
 Sitemap: https://aientropygate.com/sitemap.xml

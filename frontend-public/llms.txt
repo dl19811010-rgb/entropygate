@@ -11,6 +11,7 @@
 
 ## 站点地图与数据源
 
+- 全量文章索引（Markdown）: https://aientropygate.com/llms-full.txt
 - Sitemap: https://aientropygate.com/sitemap.xml
 - RSS: https://aientropygate.com/rss.xml
 - 文章 URL 格式: https://aientropygate.com/article?id=<数字ID>
