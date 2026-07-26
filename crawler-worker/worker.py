@@ -113,18 +113,42 @@ def iso(dt):
 
 
 def post_article(tok: str, payload: dict):
-    r = httpx.post(
-        f"{STUDIO_BASE}/api/v1/articles",
-        json=payload,
-        headers={"X-Access-Token": tok, "Content-Type": "application/json"},
-        timeout=30,
-    )
-    if r.status_code != 200:
-        return False, f"HTTP {r.status_code}: {r.text[:160]}"
-    body = r.json()
-    if body.get("code") not in (None, 200, "200"):
-        return False, f"code={body.get('code')}: {body.get('message')}"
-    return True, None
+    """POST one article; retry transient failures, never raise.
+
+    A single transport hiccup / 5xx from the Studio (mid-rebuild, ossfs
+    stall, GHA↔China route flap) used to propagate as an uncaught exception
+    and kill the ENTIRE run mid-Pass-3 (run 30210825928) — losing the
+    in-memory seen set and every unposted article. Mirror login()'s pattern:
+    backoff-retry transient errors, fail fast on 4xx (real rejection),
+    always return (ok, err) so one bad article never aborts the batch.
+    """
+    last_err = None
+    for attempt in range(4):
+        try:
+            r = httpx.post(
+                f"{STUDIO_BASE}/api/v1/articles",
+                json=payload,
+                headers={"X-Access-Token": tok, "Content-Type": "application/json"},
+                timeout=30,
+            )
+            if r.status_code >= 500:
+                last_err = f"HTTP {r.status_code}"
+                log.warning("post_article got %s (attempt %d/4), retrying...",
+                            r.status_code, attempt + 1)
+                time.sleep(5 * (attempt + 1))
+                continue
+            if r.status_code != 200:
+                return False, f"HTTP {r.status_code}: {r.text[:160]}"
+            body = r.json()
+            if body.get("code") not in (None, 200, "200"):
+                return False, f"code={body.get('code')}: {body.get('message')}"
+            return True, None
+        except Exception as e:  # transport-level: timeout / conn reset / DNS
+            last_err = f"transport: {e}"
+            log.warning("post_article transport error (attempt %d/4): %s",
+                        attempt + 1, e)
+            time.sleep(5 * (attempt + 1))
+    return False, last_err
 
 
 def report_run(tok: str, report: dict) -> None:
