@@ -28,7 +28,11 @@ function clean(s) {
     .trim();
 }
 
-export async function onRequest() {
+export async function onRequest(context) {
+  // 边缘缓存：.txt 不在 CF 默认缓存扩展名内，须用 Cache API（见 sitemap.xml.js）
+  const cached = await caches.default.match(context.request);
+  if (cached) return cached;
+
   const articles = [];
   try {
     // Backend caps page_size (~200), so page through with 200/page.
@@ -81,10 +85,12 @@ export async function onRequest() {
   }
   lines.push("");
 
-  return new Response(lines.join("\n"), {
+  const resp = new Response(lines.join("\n"), {
     headers: {
       "Content-Type": "text/plain; charset=utf-8",
-      "Cache-Control": "public, s-maxage=600, stale-while-revalidate=1800",
+      "Cache-Control": "public, s-maxage=1800, stale-while-revalidate=3600",
     },
   });
+  context.waitUntil(caches.default.put(context.request, resp.clone()));
+  return resp;
 }
