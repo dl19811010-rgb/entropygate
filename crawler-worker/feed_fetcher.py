@@ -23,6 +23,15 @@ except Exception:  # pragma: no cover
 HTTP_TIMEOUT = 30
 USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
 
+# Anchor texts that are section kickers/CTAs, never headlines — when a
+# listing-page anchor's only text is one of these, the title must come from
+# the URL slug instead (see fetch_playwright_links).
+_ANCHOR_LABEL_STOPWORDS = {
+    "featured", "latest", "news", "new", "read more", "learn more",
+    "watch", "video", "videos", "blog", "more", "view more", "see more",
+    "explore", "discover", "popular", "trending", "top stories",
+}
+
 
 
 # ── 站点默认 og:image 识别（2026-07-26）────────────────────────────────
@@ -674,6 +683,15 @@ class FeedFetcher:
                     href,
                 ):
                     continue
+                # Section-label anchors (e.g. ai.meta.com cards whose anchor
+                # text is just the kicker "FEATURED") carry real article URLs
+                # but no headline — derive one from the URL slug instead of
+                # ingesting an article literally titled "FEATURED" (DB id
+                # 436/438, 2026-07-26). Backend rewrite polishes it later.
+                if text.strip().lower() in _ANCHOR_LABEL_STOPWORDS:
+                    slug = href.rstrip("/").rsplit("/", 1)[-1]
+                    slug = re.sub(r"\.(html?|php|aspx?)$", "", slug, flags=re.I)
+                    text = slug.replace("-", " ").replace("_", " ").strip().title()
                 if not (8 <= len(text) <= 140):
                     continue
                 if href in seen:
