@@ -19,6 +19,11 @@ on:
         description: "Max NEW generations this run"
         required: false
         default: "25"
+  # 每日北京 03:00 跑一次「漂移修复」：Studio 重建会回滚重建前约半小时内的
+  # DB 写入（ossfs 冲刷窗口），done 文章的封面指针可能被打回源站默认图。
+  # 定时模式 REPAIR_ONLY=1，只重指不生成，零配额。
+  schedule:
+    - cron: "0 19 * * *"
 
 permissions:
   contents: write
@@ -58,7 +63,6 @@ jobs:
           # 翻新存量设 AI_COVERS_FORCE: "1"（确定性 key 原地覆盖，URL 不变）。
           MS_IMAGE_TOKEN: ${{ secrets.MS_IMAGE_TOKEN }}
           IMAGE_GEN_PROVIDER: "zimage_turbo"
-          IMAGE_GEN_MAX_PER_RUN: ${{ inputs.max_per_run || '25' }}
           COVER_POSTPROCESS: "1"
           # 有字版封面（YouTube 风格 headline 叠字）；退纯底图设 "0"
           COVER_TEXT_OVERLAY: "0"
@@ -67,6 +71,9 @@ jobs:
           # 定点重生成：only_ids 非空时隐含 force，只处理指定 id（小批量试新配方用）
           AI_COVERS_FORCE: ${{ inputs.force || '0' }}
           AI_COVERS_ONLY_IDS: ${{ inputs.only_ids || '' }}
+          # 定时档=漂移修复模式（只重指不生成）；手动档照常生成
+          AI_COVERS_REPAIR_ONLY: ${{ github.event_name == 'schedule' && '1' || '0' }}
+          IMAGE_GEN_MAX_PER_RUN: ${{ github.event_name == 'schedule' && '0' || (inputs.max_per_run || '25') }}
         run: |
           cd crawler-worker
           python backfill_ai_covers.py
