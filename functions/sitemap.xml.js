@@ -26,7 +26,12 @@ function toW3C(iso) {
   }
 }
 
-export async function onRequest() {
+export async function onRequest(context) {
+  // 边缘缓存：CF 默认不缓存 .xml，Cache-Control 头单独不生效，
+  // 必须用 Cache API 程序化缓存（2026-07-26 实测冷请求 ~4.5-11s）。
+  const cached = await caches.default.match(context.request);
+  if (cached) return cached;
+
   const staticUrls = [
     { loc: `${SITE}/`, priority: "1.0", changefreq: "hourly" },
     { loc: `${SITE}/flash`, priority: "0.8", changefreq: "hourly" },
@@ -78,10 +83,12 @@ export async function onRequest() {
       .join("\n") +
     `\n</urlset>\n`;
 
-  return new Response(body, {
+  const resp = new Response(body, {
     headers: {
       "Content-Type": "application/xml; charset=utf-8",
-      "Cache-Control": "public, s-maxage=600, stale-while-revalidate=1800",
+      "Cache-Control": "public, s-maxage=1800, stale-while-revalidate=3600",
     },
   });
+  context.waitUntil(caches.default.put(context.request, resp.clone()));
+  return resp;
 }
