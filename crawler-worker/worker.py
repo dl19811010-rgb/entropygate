@@ -384,6 +384,14 @@ def main() -> None:
             before = len(planned)
             planned, dropped = filter_new(planned, existing)
             dedup_dropped = before - len(planned)
+            # The backend confirmed these URLs exist — mark them seen so
+            # future runs skip them at the cheap local check instead of
+            # re-fetching full text just to be dropped here again. This is
+            # also how the seen-set self-heals after a crash mid-Pass-3
+            # (POST succeeded but save_seen never ran).
+            for d in dropped:
+                if d.get("url"):
+                    seen.add(d["url"])
             log.info("dedup: backend reports %d existing URL(s); dropped %d (kept %d)",
                      len(existing), dedup_dropped, len(planned))
         else:
