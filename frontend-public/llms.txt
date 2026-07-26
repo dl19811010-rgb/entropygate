@@ -1,0 +1,21 @@
+# EntropyGate — AI 情报快讯
+
+> EntropyGate（熵之门）是一个 AI 领域新闻情报站，自动采集全球 AI 动态（大语言模型、智能体、AI 硬件、政策与研究），经编辑智能筛选、结构化改写后以中文快讯形式发布。
+
+## 内容说明
+
+- 全部文章为中文，聚焦 AI 行业新闻与解读。
+- 每篇文章包含：一句话摘要、关键信息透视（发布主体/事件对象/核心数据/应用场景）、结构化正文（事件详情/技术要点/应用场景/下一步关注）。
+- 文章正文对爬虫直接可见（服务端注入 HTML，无需执行 JavaScript）。
+- 文章页含 NewsArticle JSON-LD 结构化数据。
+
+## 站点地图与数据源
+
+- Sitemap: https://aientropygate.com/sitemap.xml
+- RSS: https://aientropygate.com/rss.xml
+- 文章 URL 格式: https://aientropygate.com/article?id=<数字ID>
+
+## 引用政策
+
+- 允许 AI 搜索引擎与助手检索、摘要并引用本站内容，请注明来源「EntropyGate（熵之门）」及文章链接。
+- 全站内容版权归 EntropyGate 与原始报道方所有；禁止整站镜像或批量转载。
