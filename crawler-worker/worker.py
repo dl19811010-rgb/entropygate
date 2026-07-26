@@ -245,6 +245,11 @@ def main() -> None:
     with open(os.path.join(HERE, "sources.json"), encoding="utf-8") as f:
         sources = json.load(f)
 
+    # Per-source kill switch: entries with "enabled": false are skipped
+    # (e.g. 机器之心 now serves a hard anti-scrape interstitial to all
+    # datacenter traffic and actively sells data access instead).
+    sources = [s for s in sources if s.get("enabled", True)]
+
     # Multi-worker sharding: if SOURCES_FILTER is set, only process the named
     # sources. Empty filter => every source (single-runner default).
     if SOURCES_FILTER:
@@ -266,7 +271,10 @@ def main() -> None:
         use_pw = ptype in ("playwright", "playwright_html")
         try:
             if ptype == "rss":
-                entries = feed_fetcher.fetch_rss(src["feed_url"]) or []
+                entries = feed_fetcher.fetch_rss(
+                    src["feed_url"],
+                    date_tz_shift_hours=src.get("date_tz_shift_hours"),
+                ) or []
             elif ptype == "rsshub":
                 entries = feed_fetcher.fetch_rsshub(src["rsshub_route"]) or []
             elif ptype == "html":

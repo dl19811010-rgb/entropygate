@@ -98,7 +98,7 @@ class FeedFetcher:
             self._proxy_clients[proxy] = cached
         return cached
 
-    def _build_entries(self, feed) -> List[Dict[str, Any]]:
+    def _build_entries(self, feed, date_tz_shift_hours: Optional[float] = None) -> List[Dict[str, Any]]:
         """Turn a parsed feedparser feed into a list of article dicts."""
         entries = []
         for entry in feed.entries:
@@ -112,7 +112,7 @@ class FeedFetcher:
             article = {
                 "title": getattr(entry, "title", ""),
                 "url": getattr(entry, "link", ""),
-                "published_at": self._parse_date(entry),
+                "published_at": self._parse_date(entry, date_tz_shift_hours),
                 "summary": summary,
                 "content": content,
                 "image_url": self._extract_image(entry),
@@ -122,8 +122,14 @@ class FeedFetcher:
                 entries.append(article)
         return entries[:20]
 
-    def fetch_rss(self, feed_url: str, proxy: Optional[str] = None) -> Optional[List[Dict[str, Any]]]:
-        """Fetch and parse an RSS/Atom feed via plain HTTP."""
+    def fetch_rss(self, feed_url: str, proxy: Optional[str] = None,
+                  date_tz_shift_hours: Optional[float] = None) -> Optional[List[Dict[str, Any]]]:
+        """Fetch and parse an RSS/Atom feed via plain HTTP.
+
+        ``date_tz_shift_hours``: constant hour offset added to every parsed
+        pubDate — for feeds whose timestamps are systematically wrong (e.g.
+        InfoQ 中文 labels Beijing wall time as GMT → pass -8).
+        """
         try:
             logger.debug("Fetching RSS: %s (proxy=%s)", feed_url, proxy)
             response = self._client(proxy).get(feed_url)
@@ -134,7 +140,7 @@ class FeedFetcher:
             if feed.bozo != 0:
                 logger.warning("Feed parsing warning for %s: %s", feed_url, feed.bozo_exception)
 
-            entries = self._build_entries(feed)
+            entries = self._build_entries(feed, date_tz_shift_hours)
             logger.info("Fetched %d articles from RSS: %s", len(entries), feed_url)
             return entries
 
@@ -403,33 +409,69 @@ class FeedFetcher:
             logger.warning("og:image fetch failed %s: %s", url, e)
         return ""
 
-    def _parse_date(self, entry) -> Optional[datetime.datetime]:
+    def _parse_date(self, entry,
+                    date_tz_shift_hours: Optional[float] = None) -> Optional[datetime.datetime]:
         """Parse the article publish date from a feed entry into a UTC datetime.
 
         Tries the structured ``*_parsed`` fields first (most reliable), then
         falls back to parsing the raw RFC-2822 date strings. Returns None when
         no usable date is present — this lets the ingest layer decide whether
         to fall back to fetched_at.
+
+        ``date_tz_shift_hours`` applies a constant correction for feeds that
+        systematically mislabel their timezone (InfoQ 中文 writes Beijing wall
+        time with a ``GMT`` suffix → shift -8 makes every timestamp correct,
+        including items first seen >8h after publication, which the generic
+        future-clamp alone cannot reach).
         """
+        dt: Optional[datetime.datetime] = None
         for key in ("published_parsed", "updated_parsed", "created_parsed"):
             val = getattr(entry, key, None)
             if val:
                 try:
-                    return datetime.datetime(*val[:6], tzinfo=datetime.timezone.utc)
+                    dt = datetime.datetime(*val[:6], tzinfo=datetime.timezone.utc)
+                    break
                 except (TypeError, ValueError):
                     pass
 
-        for key in ("published", "updated", "created"):
-            raw = getattr(entry, key, "")
-            if raw:
-                try:
-                    dt = parsedate_to_datetime(raw)
-                    if dt.tzinfo is None:
-                        dt = dt.replace(tzinfo=datetime.timezone.utc)
-                    return dt.astimezone(datetime.timezone.utc)
-                except (TypeError, ValueError):
-                    pass
-        return None
+        if dt is None:
+            for key in ("published", "updated", "created"):
+                raw = getattr(entry, key, "")
+                if raw:
+                    try:
+                        dt = parsedate_to_datetime(raw)
+                        if dt.tzinfo is None:
+                            dt = dt.replace(tzinfo=datetime.timezone.utc)
+                        dt = dt.astimezone(datetime.timezone.utc)
+                        break
+                    except (TypeError, ValueError):
+                        pass
+        if dt is not None and date_tz_shift_hours:
+            dt = dt + datetime.timedelta(hours=date_tz_shift_hours)
+        return self._fix_mislabelled_future(dt)
+
+    @staticmethod
+    def _fix_mislabelled_future(
+        dt: Optional[datetime.datetime],
+    ) -> Optional[datetime.datetime]:
+        """Repair feeds that label local wall time as GMT.
+
+        InfoQ 中文 (infoq.cn/feed) emits Beijing wall time with a literal
+        ``GMT`` suffix (e.g. ``15:03:20 GMT`` at 15:03 CST = 07:03 UTC), so
+        the parsed date sits ~8h in the future and every ingested article
+        gets a negative publish→ingest delay. Any parsed date >10min in the
+        future is treated as "+0800 wall time mislabelled as UTC": subtract
+        8h. If it is STILL in the future after that, hard-clamp to now —
+        a news article can never legitimately carry a future pubDate.
+        No-op for correctly-labelled feeds (their dates are never future).
+        """
+        if dt is None:
+            return None
+        now = datetime.datetime.now(datetime.timezone.utc)
+        if dt > now + datetime.timedelta(minutes=10):
+            shifted = dt - datetime.timedelta(hours=8)
+            return shifted if shifted <= now else now
+        return dt
 
     def _extract_image(self, entry) -> str:
         """Best-effort image extraction from a feed entry."""

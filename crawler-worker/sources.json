@@ -33,6 +33,14 @@
     "name": "InfoQ 中文",
     "parser_type": "rss",
     "feed_url": "https://www.infoq.cn/feed",
+    "language": "zh",
+    "date_tz_shift_hours": -8,
+    "date_tz_note": "feed labels Beijing wall time as GMT"
+  },
+  {
+    "name": "雷锋网 (Leiphone)",
+    "parser_type": "rss",
+    "feed_url": "https://www.leiphone.com/feed",
     "language": "zh"
   },
   {
@@ -45,7 +53,9 @@
     "name": "机器之心 (Jiqizhixin)",
     "parser_type": "playwright_html",
     "list_url": "https://www.jiqizhixin.com/",
-    "language": "zh"
+    "language": "zh",
+    "enabled": false,
+    "disabled_reason": "hard anti-scrape interstitial (data-service paywall) since ~2026-07; no RSS; RSSHub blocked at origin"
   },
   {
     "name": "Google DeepMind Blog",
