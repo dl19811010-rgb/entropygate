@@ -39,7 +39,7 @@ import logging
 from datetime import datetime, timezone
 
 import httpx
-from feed_fetcher import feed_fetcher, first_content_image
+from feed_fetcher import feed_fetcher, first_content_image, _is_site_default_image
 from dedup import filter_new, check_existing_urls
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -394,8 +394,15 @@ def main() -> None:
     gen_hit = 0
     for p in planned:
         if p.get("image_url"):
-            need[p["url"]] = p["image_url"]
-            continue
+            # 源直给图（RSS enclosure/媒体字段）也可能是站点默认占位图
+            # （qbitai head.jpg 走的就是这个口子，2026-07-26）：视为无图继续走阶梯。
+            if _is_site_default_image(p["image_url"]):
+                log.info("img-feed site-default, ladder continues [%s] %r",
+                         p["source_name"], (p.get("title") or "")[:60])
+                p["image_url"] = ""
+            else:
+                need[p["url"]] = p["image_url"]
+                continue
         # Supabase11 落地：原图优先阶梯（官方图最贴题，搜图兜底）
         # ① 正文内嵌图：feed 已带全文 HTML 时零网络成本（RSSHub 源唯一可用原图通道）
         img = first_content_image(p.get("content") or "", p["url"])
