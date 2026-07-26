@@ -34,13 +34,17 @@ import sys
 import os
 import json
 import time
+import hashlib
 import logging
+from datetime import datetime, timedelta
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("backfill-ai-covers")
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from image_host import upload_images, r2_enabled, load_map, save_map  # noqa: E402
+from image_host import (
+    upload_images, r2_enabled, load_map, save_map, R2_PUBLIC_BASE,
+)  # noqa: E402
 from feed_fetcher import feed_fetcher, first_content_image  # noqa: E402
 from image_gen import generate_cover, enabled as gen_enabled, remaining as gen_remaining  # noqa: E402
 
@@ -179,6 +183,7 @@ def main():
 
     need, direct, owner = {}, {}, {}
     drift = {}  # src_url -> (article, expected_r2_url)：DB 指针漂移待修复
+    probe = {}  # src_url -> article：修复模式下待做确定性 key 探测的非 done 文章
     mp0 = load_map()  # done 漂移检测用（image_map 持有最终 R2 URL）
     n_has_original = n_done_skip = 0
     for a in arts:
@@ -199,7 +204,11 @@ def main():
                 drift[src_url] = (a, exp)
             continue
         if repair_only:
-            continue  # 修复模式：非 done 文章不处理（生成留给手动/定点跑）
+            # 修复模式：非 done 文章不生成。但 done 集很小（历史竞态丢失），
+            # 非 done 文章同样可能是重建回滚受害者 → 收集起来做确定性 key 探测。
+            if not is_r2((a.get("image_url") or "")):
+                probe[src_url] = a
+            continue
         # 定点模式：目标已有 AI 封面（force 语义）→ 跳过 og 慢查，直接重生成
         if only_ids:
             brief = cover_brief_for(a, tok)
@@ -268,6 +277,44 @@ def main():
                             a.get("id"), st, str(js)[:140])
             time.sleep(0.2)
         log.info("drift repair done: %d/%d re-pointed", rep, len(drift))
+
+    # 通用漂移兜底（仅修复模式）：两管线共用确定性 key = sha1(src_url)[:16]，
+    # 探测到对象即说明该文曾有过 R2 封面、现值为漂移/回滚 → 重指。
+    # 只查本月+上月（回滚伤害必然是近期的），jpg/png 各试一次。
+    if repair_only and probe and R2_PUBLIC_BASE:
+        now = datetime.utcnow()
+        prev = now.replace(day=1) - timedelta(days=1)
+        months = {(now.year, now.month), (prev.year, prev.month)}
+        found = 0
+        for src_url, a in probe.items():
+            h = hashlib.sha1(src_url.encode("utf-8")).hexdigest()[:16]
+            hit = ""
+            for (y, m) in sorted(months, reverse=True):
+                for ext in (".jpg", ".png"):
+                    u = f"{R2_PUBLIC_BASE}/img/{y}/{m:02d}/{h}{ext}"
+                    try:
+                        r = httpx.head(u, timeout=15, follow_redirects=True)
+                        if r.status_code == 200 and \
+                                int(r.headers.get("content-length", "0")) > 10000:
+                            hit = u
+                            break
+                    except Exception:
+                        pass
+                if hit:
+                    break
+            if hit:
+                st, js = api("PUT", f"/articles/{a['id']}", token=tok,
+                             body={"image_url": hit})
+                if st == 200:
+                    found += 1
+                    log.info("drift-probe [id=%s] %r -> %s",
+                             a.get("id"), (a.get("title") or "")[:40], hit[:90])
+                else:
+                    log.warning("drift-probe PUT failed [id=%s] %s %s",
+                                a.get("id"), st, str(js)[:140])
+                time.sleep(0.2)
+        log.info("drift probe done: %d/%d re-pointed via deterministic key",
+                 found, len(probe))
 
     if not need and not direct:
         log.info("nothing to backfill")
