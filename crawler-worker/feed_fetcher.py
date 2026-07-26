@@ -30,7 +30,7 @@ USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
 # 文章专属头图。worker Pass2 阶梯②抓到它会 if img: continue 截胡，导致 AI
 # 有字版封面(阶梯③)不被触发，封面变成灰色头像占位。命中以下命名 → 视为无图。
 _SITE_DEFAULT_IMG_HINTS = (
-    "head.jpg", "head.png", "/logo", "logo.", "default", "placeholder",
+    "head.jpg", "head.png", "/logo", "logo.", "_icon", "default", "placeholder",
     "og-default", "og_default", "site-image", "site_image", "avatar",
     "favicon", "/icon", "brand", "share-default", "cover-default",
     "no-image", "noimage", "blank",
