@@ -1,0 +1,48 @@
+name: Baidu URL Push (US egress)
+
+# 百度「普通收录」主动推送。新站日配额 ~10 条，北京 00:00 重置，
+# 故每天 UTC 16:05（北京 00:05）跑一次；也可手动 dispatch。
+# 详见 crawler-worker/baidu_push.py  docstring。
+
+on:
+  schedule:
+    - cron: "5 16 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  push:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.PAT }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Push new article URLs to Baidu
+        env:
+          STUDIO_BASE_URL: ${{ secrets.STUDIO_BASE_URL }}
+          BAIDU_PUSH_TOKEN: ${{ secrets.BAIDU_PUSH_TOKEN }}
+        run: |
+          cd crawler-worker
+          python baidu_push.py
+
+      - name: Commit push state back
+        if: always()
+        run: |
+          git config user.name "crawler-worker[bot]"
+          git config user.email "bot@entropygate.cc"
+          git remote set-url origin "https://${{ secrets.PAT }}@github.com/${{ github.repository }}.git"
+          git add crawler-worker/baidu_push_state.json
+          git diff --cached --quiet || git commit -m "chore: update baidu_push state [skip ci]"
+          git pull --rebase origin main
+          git push
+        continue-on-error: true
