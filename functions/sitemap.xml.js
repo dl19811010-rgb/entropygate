@@ -36,12 +36,13 @@ export async function onRequest() {
 
   const urls = [];
   try {
-    // Pull up to 1000 recent articles (light fields keep the payload small).
-    const r = await fetch(
-      `${ORIGIN}/articles?page=1&page_size=1000&fields=light&status=approved,published`,
-      { headers: { Accept: "application/json", "User-Agent": "EntropyGate-Sitemap/1.0" } }
-    );
-    if (r.ok) {
+    // Backend caps page_size (422 above ~200), so page through with 200/page.
+    for (let page = 1; page <= 20; page++) {
+      const r = await fetch(
+        `${ORIGIN}/articles?page=${page}&page_size=200&fields=light&status=approved,published`,
+        { headers: { Accept: "application/json", "User-Agent": "EntropyGate-Sitemap/1.0" } }
+      );
+      if (!r.ok) break;
       const j = await r.json();
       const payload = j.data || {};
       const items = Array.isArray(payload.items)
@@ -58,6 +59,7 @@ export async function onRequest() {
           changefreq: "weekly",
         });
       }
+      if (items.length < 200) break;
     }
   } catch {
     // fall through: serve whatever we have (static routes at minimum)
