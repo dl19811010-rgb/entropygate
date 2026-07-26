@@ -28,7 +28,10 @@ function toRFC822(iso) {
   }
 }
 
-export async function onRequest() {
+export async function onRequest(context) {
+  // 边缘缓存：.xml 不在 CF 默认缓存扩展名内，须用 Cache API（见 sitemap.xml.js）
+  const cached = await caches.default.match(context.request);
+  if (cached) return cached;
   try {
     const resp = await fetch(
       `${ORIGIN}/articles?page=1&page_size=30&fields=light&status=approved,published`,
@@ -87,13 +90,15 @@ export async function onRequest() {
 
     xml += `\n</channel>\n</rss>`;
 
-    return new Response(xml, {
+    const rssResp = new Response(xml, {
       status: 200,
       headers: {
         "Content-Type": "application/rss+xml; charset=utf-8",
-        "Cache-Control": "public, max-age=300, stale-while-revalidate=600",
+        "Cache-Control": "public, s-maxage=900, stale-while-revalidate=1800",
       },
     });
+    context.waitUntil(caches.default.put(context.request, rssResp.clone()));
+    return rssResp;
   } catch (err) {
     return new Response(`<error>${escapeXml(String(err.message))}</error>`, {
       status: 500,
