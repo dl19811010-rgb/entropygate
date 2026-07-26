@@ -30,7 +30,7 @@ import re
 
 log = logging.getLogger("text_overlay")
 
-_ENABLED = os.environ.get("COVER_TEXT_OVERLAY", "1") == "1"
+_ENABLED = os.environ.get("COVER_TEXT_OVERLAY", "0") == "1"
 _HEADLINE_COLOR = os.environ.get("COVER_HEADLINE_COLOR", "#FFFFFF")
 _HIGHLIGHT_COLOR = os.environ.get("COVER_HIGHLIGHT_COLOR", "#FFD60A")
 _STROKE_COLOR = "#0A0C14"
