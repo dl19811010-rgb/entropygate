@@ -147,6 +147,20 @@ def extract_h1(html):
     return re.sub(r"\s+", " ", re.sub(r"<[^>]+>", "", m.group(1))).strip()
 
 
+def check_quotes(html, source):
+    """引语逐字核验：quote-box 内 <p> 文本须在原文中逐字存在（归一化后子串匹配）"""
+    norm = lambda s: re.sub(r"[^0-9A-Za-z\u4e00-\u9fff]+", "", s or "")
+    src_n = norm(source)
+    out = []
+    for m in re.finditer(r'<div class="quote-box">(.*?)</div>', html, re.S):
+        pm = re.search(r"<p>(.*?)</p>", m.group(1), re.S)
+        if not pm:
+            continue
+        q = re.sub(r"<[^>]+>", "", pm.group(1)).strip().strip("“”\"' ")
+        out.append({"text": q[:80], "verbatim": norm(q) in src_n})
+    return out
+
+
 def run_one(model, slot, article, thinking_budget=0):
     source_text = (
         f"标题：{article['title']}\n来源：{article.get('source_name') or '未知'}\n\n"
@@ -185,6 +199,10 @@ def run_one(model, slot, article, thinking_budget=0):
         h1=extract_h1(html),
         tail40=html[-40:],
         file=fname,
+    )
+    rec["quotes"] = check_quotes(html, source_text)
+    rec["quotes_all_verbatim"] = (
+        all(q["verbatim"] for q in rec["quotes"]) if rec["quotes"] else None
     )
     return rec
 
