@@ -96,7 +96,10 @@ def gen(model, system, user, thinking_budget=0):
         "system_instruction": {"parts": [{"text": system}]},
         "contents": [{"role": "user", "parts": [{"text": user}]}],
         "safetySettings": SAFETY,
-        "generationConfig": {"maxOutputTokens": 65536, "temperature": 1.0},
+        "generationConfig": {
+            "maxOutputTokens": 65536,
+            "temperature": float(PAYLOAD.get("temperature", 0.6)),
+        },
     }
     if thinking_budget:
         body["generationConfig"]["thinkingConfig"] = {
@@ -152,7 +155,10 @@ def run_one(model, slot, article, thinking_budget=0):
     user = PAYLOAD["user_tmpl"].replace("{{BLUEPRINT}}", PAYLOAD["blueprint"]).replace(
         "{{ARTICLE}}", source_text
     )
-    st, j, elapsed = gen(model, PAYLOAD["system"], user, thinking_budget)
+    system = PAYLOAD["system"]
+    if PAYLOAD.get("system_addendum"):
+        system = system + "\n\n" + PAYLOAD["system_addendum"]
+    st, j, elapsed = gen(model, system, user, thinking_budget)
     rec = {
         "model": model,
         "slot": slot,
