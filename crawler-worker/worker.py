@@ -382,14 +382,17 @@ def main() -> None:
         existing = check_existing_urls(STUDIO_BASE, tok, candidate_urls)
         if existing:
             before = len(planned)
-            planned, dropped = filter_new(planned, existing)
+            # filter_new returns (kept, dropped_COUNT); collect the dropped
+            # dicts ourselves so we can mark them seen below.
+            dropped_items = [p for p in planned if (p.get("url") or "").strip() in existing]
+            planned, _dropped_cnt = filter_new(planned, existing)
             dedup_dropped = before - len(planned)
             # The backend confirmed these URLs exist — mark them seen so
             # future runs skip them at the cheap local check instead of
             # re-fetching full text just to be dropped here again. This is
             # also how the seen-set self-heals after a crash mid-Pass-3
             # (POST succeeded but save_seen never ran).
-            for d in dropped:
+            for d in dropped_items:
                 if d.get("url"):
                     seen.add(d["url"])
             log.info("dedup: backend reports %d existing URL(s); dropped %d (kept %d)",
