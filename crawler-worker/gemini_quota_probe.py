@@ -21,8 +21,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 OUTDIR = os.path.join(HERE, "gemini_quota_out")
 os.makedirs(OUTDIR, exist_ok=True)
 
-MAX_CALLS = 100
-INTERVAL_S = 4.2
+MAX_CALLS = 30
+INTERVAL_S = 12.5
 TIME_BUDGET_S = 480
 
 
@@ -83,7 +83,7 @@ def main():
             err = json.dumps(j, ensure_ascii=False)[:900]
             print(f"[quota] {i} http={st} {el}s {err[:200]}", flush=True)
             if st == 429:
-                time.sleep(5)
+                time.sleep(30)
                 st2, j2, _ = call()
                 stop = {
                     "reason": "429_confirmed" if st2 == 429 else "429_transient",
