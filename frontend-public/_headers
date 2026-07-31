@@ -7,3 +7,7 @@
 
 /
   Cache-Control: public, max-age=0, must-revalidate
+
+# CF Pages 函数代理的 API 响应缓存
+# 匿名用户走边缘缓存（max-age=120 + stale-while-revalidate=300）
+# 见 functions/api/[[route]].js 的 Cache-Control 设置
