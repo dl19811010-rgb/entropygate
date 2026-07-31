@@ -64,6 +64,16 @@ class ArticleService(BaseService[Article]):
         items = q.offset(offset).limit(page_size).all()
         return items, total
 
+    def get_by_slug(self, slug: str) -> Optional[Article]:
+        """Fetch an article by its slug (for SEO-friendly URLs)."""
+        if not slug:
+            return None
+        return (
+            self.db.query(Article)
+            .filter(Article.slug == slug)
+            .first()
+        )
+
     def create_article(self, **kwargs) -> Article:
         """Create an article and compute its editorial score."""
         article = super().create(**kwargs)

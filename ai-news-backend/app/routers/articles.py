@@ -19,6 +19,7 @@ async def list_articles(
     source_id: int = Query(None),
     search: str = Query(None),
     bucket: str = Query(None),
+    fields: str = Query(None),
     sort_by: str = Query("created_at"),
     sort_dir: str = Query("desc"),
     db: Session = Depends(get_db),
@@ -29,8 +30,9 @@ async def list_articles(
         category_id=category_id, source_id=source_id,
         search=search, bucket=bucket, sort_by=sort_by, sort_dir=sort_dir,
     )
+    is_light = fields == "light"
     return paginated_response(
-        items=[a.to_dict() for a in items],
+        items=[a.to_light_dict() if is_light else a.to_dict() for a in items],
         total=total,
         page=page,
         page_size=page_size,
@@ -82,9 +84,14 @@ async def reject_article(
 
 
 @router.get("/{article_id}")
-async def get_article(article_id: int, db: Session = Depends(get_db)):
+async def get_article(article_id: str, db: Session = Depends(get_db)):
     svc = ArticleService(db)
-    article = svc.get_by_id(article_id)
+    # Try integer id first, then fall back to slug for SEO-friendly URLs
+    article = None
+    if article_id.isdigit():
+        article = svc.get_by_id(int(article_id))
+    if article is None:
+        article = svc.get_by_slug(article_id)
     if not article:
         return error_response("Article not found", 404)
     return success_response(article.to_dict())

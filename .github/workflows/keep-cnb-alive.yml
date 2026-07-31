@@ -1,8 +1,9 @@
-name: Keep CNB Alive
+name: Keep CNB / ModelScope Alive
 
 on:
   schedule:
-    - cron: '0 */12 * * *'
+    # 每 5 分钟 ping 一次，避免 ModelScope 容器因空闲而冷启动（空闲超时约 15-30 分钟）
+    - cron: '*/5 * * * *'
   workflow_dispatch:
 
 jobs:

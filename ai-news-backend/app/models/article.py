@@ -131,3 +131,34 @@ class Article(Base):
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }
+
+    def to_light_dict(self):
+        """轻量序列化，用于列表页（首页/快讯页），排除 content 等大字段以提升响应速度。"""
+        return {
+            "id": self.id,
+            "title": self.title,
+            "slug": self.slug,
+            "summary": self.summary,
+            "url": self.url,
+            "source_url": self.source_url,
+            "source_name": self.source_name,
+            "source_id": self.source_id,
+            "published_at": self.published_at.isoformat() if self.published_at else None,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+            "category_id": self.category_id,
+            "category": self.category.to_dict() if self.category else None,
+            "tags": [t.to_dict() for t in self.tags] if self.tags else [],
+            "editorial_score": self.editorial_score,
+            "editorial_bucket": self.editorial_bucket,
+            "editorial_tier": self.editorial_tier,
+            "review_status": self.review_status,
+            "ai_summary": self.ai_summary,
+            "ai_keywords": self.ai_keywords.split(",") if self.ai_keywords else [],
+            "ai_entities": self.ai_entities.split(",") if self.ai_entities else [],
+            "image_url": self.image_url,
+            "thumbnail_url": self.thumbnail_url,
+            "is_featured": self.is_featured,
+            "is_trending": self.is_trending,
+            "is_breaking": self.is_breaking,
+        }
