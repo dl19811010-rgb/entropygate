@@ -1,20 +1,18 @@
 // Cloudflare Pages Function — root-level catch-all for API proxy.
 // Route: /api/*  ->  Tunnel backend
+// Other routes: pass through to static assets
 const ORIGIN = "https://api-tunnel.aientropygate.com/api/v1";
 const fallbackCache = new Map();
 const FALLBACK_TTL = 5 * 60 * 1000;
 
 export async function onRequest(context) {
-  const { request } = context;
+  const { request, next } = context;
   const url = new URL(request.url);
   const pathname = url.pathname;
 
-  // Only handle /api/* routes
+  // Only handle /api/* routes - pass everything else to static assets
   if (!pathname.startsWith("/api/")) {
-    return new Response(JSON.stringify({ error: "Not found" }), {
-      status: 404,
-      headers: { "Content-Type": "application/json" },
-    });
+    return next();
   }
 
   // Warm-up ping
