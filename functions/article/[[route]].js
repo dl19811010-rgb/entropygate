@@ -18,7 +18,7 @@
 // iframe view. Bots without JS keep the full text. Same content, two render
 // paths — not cloaking.
 
-const ORIGIN = "http://117.72.240.101.nip.io/api/v1";
+const ORIGIN = "https://api-tunnel.aientropygate.com/api/v1";
 const SITE = "https://aientropygate.com";
 
 function escapeHtml(s) {

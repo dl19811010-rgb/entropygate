@@ -12,7 +12,7 @@
 // 5. warmup-upstream: __warmup endpoint actually calls the backend health
 //    endpoint to keep the container alive
 
-const ORIGIN = "http://117.72.240.101.nip.io/api/v1";
+const ORIGIN = "https://api-tunnel.aientropygate.com/api/v1";
 
 // In-memory fallback: last successful response per route
 const fallbackCache = new Map();
