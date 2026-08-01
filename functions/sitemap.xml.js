@@ -5,7 +5,7 @@
 // Lists every approved/published article so search engines can discover all
 // content (the SPA has no crawlable internal links to most articles).
 
-const ORIGIN = "https://entropygate.cc.cd/api/v1";
+const ORIGIN = "http://117.72.240.101/api/v1";
 const SITE = "https://aientropygate.com";
 
 function escapeXml(s) {

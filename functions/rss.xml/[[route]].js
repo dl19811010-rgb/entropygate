@@ -5,7 +5,7 @@
 // Fetches the latest approved/published articles from the backend API
 // and renders them as a standards-compliant RSS 2.0 XML feed.
 
-const ORIGIN = "https://entropygate.cc.cd/api/v1";
+const ORIGIN = "http://117.72.240.101/api/v1";
 const SITE_URL = "https://aientropygate.com";
 const FEED_TITLE = "EntropyGate — AI 情报快讯";
 const FEED_DESC = "AI 领域最新动态：大语言模型、智能体、硬件、政策与研究。由 EntropyGate AI 自动采集、策展与改写。";

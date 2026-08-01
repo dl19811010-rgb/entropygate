@@ -8,7 +8,7 @@
 // (site-level description + citation policy). Capped at the newest 1000
 // articles; the complete historical list lives in /sitemap.xml.
 
-const ORIGIN = "https://entropygate.cc.cd/api/v1";
+const ORIGIN = "http://117.72.240.101/api/v1";
 const SITE = "https://aientropygate.com";
 const MAX_PAGES = 5; // 5 * 200 = 1000 articles cap
 
